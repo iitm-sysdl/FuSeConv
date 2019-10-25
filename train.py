@@ -123,6 +123,10 @@ elif args.optim == 'rms':
     optimizer = optim.RMSprop(net.parameters(), lr=args.lr, alpha=0.99, momentum=0.9, weight_decay = args.wd)
 elif args.optim == 'sgd':
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
+
+step_size = 6*len(train_loader)#30000
+scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.1, step_size_up=step_size)
+
 #--------------------------------------------
 
 def train(epoch):
@@ -137,7 +141,8 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
-        optimizer.step()
+        scheduler.step()
+        #optimizer.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
