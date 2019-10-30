@@ -136,11 +136,7 @@ print('==> Model Flops:{}'.format(flops))
 print('==> Model Params:' + str(params))
 
 net = net.to(device)
-if device == 'cuda':if args.optim=='adam':
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=args.wd, amsgrad=False)
-elif args.optim == 'rms':
-    optimizer = optim.RMSprop(net.parameters(), lr=args.lr, alpha=0.99, momentum=0.9, weight_decay = args.wd)
-elif args.optim == 'sgd':
+if device == 'cuda':
      #net = torch.nn.DataParallel(net, device_ids=[0,2,3,4])
      cudnn.benchmark = True
 #-----------------------------------------------Optimizer----------------------------------------------
