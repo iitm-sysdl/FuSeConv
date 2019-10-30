@@ -27,12 +27,12 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 parser = argparse.ArgumentParser(description='PyTorch IMAGENET Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--wd', default=1e-5 , type=float, help='Weight Decay')
+parser.add_argument('--change', nargs='+', help='Layers to be Modified', default=[])
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--resumebestloss', action='store_true', help='resume from best loss checkpoint')
-parser.add_argument('--optim', type=str, help='Optimizer', required=True)
 parser.add_argument('--name', type=str, help='TensorboardName and Name to save the models', required=True)
-parser.add_argument('--epoch', type=int, help='Number of Epochs to Train', required=True)
+parser.add_argument('--epoch1', type=int, help='Number of Epochs to Train Freezed', required=True)
+parser.add_argument('--epoch2', type=int, help='Number of Epochs to Train Unfreezed', required=True)
 parser.add_argument('--decay', action='store_true', help='Decay Learning Rate')
 args = parser.parse_args()
 
@@ -68,34 +68,47 @@ net = MobileNetV3(mode='small', dropout=0)
 state_dict = torch.load('./pretrainedmodels/mobilenetv3_small_67.4.pth.tar')
 net.load_state_dict(state_dict, strict=True)
 
-# l = []
-# for name, child in net.named_children():
-#     if name == 'features':
-#         for x,y in child.named_children():
-#             if x == '11':
-#                 l.append(BottleNeck_Sys_Friendly(96, 96, 5, 1, 576, True, 'HS'))
-#             else:
-#                 l.append(y)
-#     elif name == 'classifier':
-#         l.append(Flatten())
-#         l.append(child)
+small = [
+                # inp, oup, kernel,  stride, expa, se ,nl,  
+                [ 16, 16, 3, 2, 16,  True,  'RE'],
+                [ 16, 24, 3, 2, 72,  False, 'RE'],
+                [ 24, 24, 3, 1, 88,  False, 'RE'],
+                [ 24, 40, 5, 2, 96,  True,  'HS'],
+                [ 40, 40, 5, 1, 240, True,  'HS'],
+                [ 40, 40, 5, 1, 240, True,  'HS'],
+                [ 40, 48, 5, 1, 120, True,  'HS'],
+                [ 48, 48, 5, 1, 144, True,  'HS'],
+                [ 48, 96, 5, 2, 288, True,  'HS'],
+                [ 96, 96, 5, 1, 576, True,  'HS'],
+                [ 96, 96, 5, 1, 576, True,  'HS'],
+            ]
+l = []
+for name, child in net.named_children():
+    if name == 'features':
+        for x,y in child.named_children():
+            if x in args.change:
+                layer = int(x)
+                l.append(BottleNeck_Sys_Friendly(*small[layer-1]))
+            else:
+                l.append(y)
+    elif name == 'classifier':
+        l.append(Flatten())
+        l.append(child)
 
-# new_model = nn.Sequential(*l)
-# net = new_model
-# l = []
-# for name, child in net.named_children():
-# 	if name == '10':
-# 		l.append(BottleNeck_Sys_Friendly(96, 96, 5, 1, 576, True, 'HS'))
-# 	else:
-# 		l.append(child)
-# new_model = nn.Sequential(*l)
-# net = new_model
+new_model = nn.Sequential(*l)
+net = new_model
 	
 # load = torch.load('./checkpoint/gd1BestModel.t7')
 # net.load_state_dict(load['net'])
+for param in net.parameters():
+  	param.requires_grad = False
 
-# for param in net.parameters():
-#  	param.requires_grad = True
+for x in args.change:
+    y = int(x)
+    for param in net[y].parameters():
+  	    param.requires_grad = True
+
+
 
 if args.resume:
      # Load Best Model (Test Accuracy) from checkpoint.
@@ -123,22 +136,17 @@ print('==> Model Flops:{}'.format(flops))
 print('==> Model Params:' + str(params))
 
 net = net.to(device)
-if device == 'cuda':
+if device == 'cuda':if args.optim=='adam':
+    optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=args.wd, amsgrad=False)
+elif args.optim == 'rms':
+    optimizer = optim.RMSprop(net.parameters(), lr=args.lr, alpha=0.99, momentum=0.9, weight_decay = args.wd)
+elif args.optim == 'sgd':
      #net = torch.nn.DataParallel(net, device_ids=[0,2,3,4])
      cudnn.benchmark = True
 #-----------------------------------------------Optimizer----------------------------------------------
 print('==>Setting Up Optimizer..')
 criterion = nn.CrossEntropyLoss()
-if args.optim=='adam':
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, betas=(0.9, 0.999), eps=1e-08, weight_decay=args.wd, amsgrad=False)
-elif args.optim == 'rms':
-    optimizer = optim.RMSprop(net.parameters(), lr=args.lr, alpha=0.99, momentum=0.9, weight_decay = args.wd)
-elif args.optim == 'sgd':
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
-
-step_size = 6*len(train_loader)#30000
-scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.1, step_size_up=step_size)
-
+optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=4e-5)
 #--------------------------------------------
 
 def train(epoch):
@@ -154,8 +162,8 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
-        scheduler.step()
-        #optimizer.step()
+        # scheduler.step()
+        optimizer.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -232,17 +240,23 @@ with mlflow.start_run():
     mlflow.set_tag('Name', args.name)
     mlflow.log_param('LR', str(args.lr))
     print('==> Started Training model..')
-    for epoch in range(start_epoch, start_epoch+args.epoch):
-        if args.optim =='rms' or args.optim =='sgd':
-            if args.decay:
-                lr = args.lr * (0.01 ** (epoch//10))
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = lr
-                mlflow.log_metric('Learning Rate', lr, epoch)
-                writer.add_scalar('Learning Rate', lr, epoch)
+    for epoch in range(start_epoch, start_epoch+args.epoch1):
         train(epoch)
         test(epoch)
-        
+    
+    for param in net.parameters():
+  	    param.requires_grad = True
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=4e-5)
+
+    for epoch in range(args.epoch1, args.epoch1+args.epoch2):
+        if args.decay:
+            lr = args.lr * (0.01 ** (epoch//10))
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
+            mlflow.log_metric('Learning Rate', lr, epoch)
+            writer.add_scalar('Learning Rate', lr, epoch)
+        train(epoch)
+        test(epoch)
 
 writer.close()
 #---------------------------------------
