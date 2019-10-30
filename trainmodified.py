@@ -26,7 +26,6 @@ torch.manual_seed(42)
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 parser = argparse.ArgumentParser(description='PyTorch IMAGENET Training')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--change', nargs='+', help='Layers to be Modified', default=[])
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--resumebestloss', action='store_true', help='resume from best loss checkpoint')
@@ -142,7 +141,7 @@ if device == 'cuda':
 #-----------------------------------------------Optimizer----------------------------------------------
 print('==>Setting Up Optimizer..')
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=4e-5)
+optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=4e-5)
 #--------------------------------------------
 
 def train(epoch):
@@ -242,7 +241,7 @@ with mlflow.start_run():
     
     for param in net.parameters():
   	    param.requires_grad = True
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=4e-5)
+    optimizer = optim.SGD(net.parameters(), lr=1e-3, momentum=0.9, weight_decay=4e-5)
 
     for epoch in range(args.epoch1, args.epoch1+args.epoch2):
         if args.decay:
