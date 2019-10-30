@@ -233,7 +233,6 @@ def test(epoch):
 with mlflow.start_run():
     mlflow.set_tag('Optim', args.optim)
     mlflow.set_tag('Name', args.name)
-    mlflow.log_param('LR', str(args.lr))
     print('==> Started Training model..')
     for epoch in range(start_epoch, start_epoch+args.epoch1):
         train(epoch)
@@ -245,7 +244,7 @@ with mlflow.start_run():
 
     for epoch in range(args.epoch1, args.epoch1+args.epoch2):
         if args.decay:
-            lr = args.lr * (0.01 ** (epoch//10))
+            lr = 1e-3 * (0.01 ** (epoch//10))
             for param_group in optimizer.param_groups:
                 param_group['lr'] = lr
             mlflow.log_metric('Learning Rate', lr, epoch)
