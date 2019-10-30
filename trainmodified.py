@@ -231,7 +231,6 @@ def test(epoch):
 
 #-------------------------------------Main Part---------------------
 with mlflow.start_run():
-    mlflow.set_tag('Optim', args.optim)
     mlflow.set_tag('Name', args.name)
     print('==> Started Training model..')
     for epoch in range(start_epoch, start_epoch+args.epoch1):
