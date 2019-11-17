@@ -87,9 +87,7 @@ class SqueezeNet(nn.Module):
 
     def forward(self, x):
         x = self.features(x)
-        print(x.shape)
         x = self.classifier(x)
-        print(x.shape)
         return torch.flatten(x, 1)
 
 class SqueezeNetFriendly(nn.Module):
@@ -131,9 +129,7 @@ class SqueezeNetFriendly(nn.Module):
 
     def forward(self, x):
         x = self.features(x)
-        print(x.shape)
         x = self.classifier(x)
-        print(x.shape)
         return torch.flatten(x, 1)
 
 def test():
@@ -170,6 +166,6 @@ def test():
     # print(net)
     #for param_tensor in net.state_dict():
     #    print(param_tensor, "\t", net.state_dict()[param_tensor].size())
-test()
+#test()
         
         
