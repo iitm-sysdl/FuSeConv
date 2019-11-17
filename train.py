@@ -207,12 +207,13 @@ def test(epoch):
     mlflow.log_metric('TestAccuracy', (1.0*correct)/total, epoch) 
 
     acc = 100.*correct/total
+    best_acc_int = int(best_acc*total/100.)
     state = {
             'net': net.state_dict(),
             'acc': acc,
             'epoch': epoch,
         }
-    if acc > best_acc:
+    if correct > best_acc_int:
         print('Saving Best Model..')
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
