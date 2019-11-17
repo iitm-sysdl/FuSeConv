@@ -68,35 +68,6 @@ net = MobileNetV3(mode='small', dropout=0)
 state_dict = torch.load('./pretrainedmodels/mobilenetv3_small_67.4.pth.tar')
 net.load_state_dict(state_dict, strict=True)
 
-# l = []
-# for name, child in net.named_children():
-#     if name == 'features':
-#         for x,y in child.named_children():
-#             if x == '11':
-#                 l.append(BottleNeck_Sys_Friendly(96, 96, 5, 1, 576, True, 'HS'))
-#             else:
-#                 l.append(y)
-#     elif name == 'classifier':
-#         l.append(Flatten())
-#         l.append(child)
-
-# new_model = nn.Sequential(*l)
-# net = new_model
-# l = []
-# for name, child in net.named_children():
-# 	if name == '10':
-# 		l.append(BottleNeck_Sys_Friendly(96, 96, 5, 1, 576, True, 'HS'))
-# 	else:
-# 		l.append(child)
-# new_model = nn.Sequential(*l)
-# net = new_model
-	
-# load = torch.load('./checkpoint/gd1BestModel.t7')
-# net.load_state_dict(load['net'])
-
-# for param in net.parameters():
-#  	param.requires_grad = True
-
 if args.resume:
      # Load Best Model (Test Accuracy) from checkpoint.
      print('==> Resuming from checkpoint..')
@@ -136,8 +107,6 @@ elif args.optim == 'rms':
 elif args.optim == 'sgd':
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
 
-step_size = 6*len(train_loader)#30000
-scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=0.01, max_lr=0.1, step_size_up=step_size)
 
 #--------------------------------------------
 
@@ -154,8 +123,7 @@ def train(epoch):
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
-        scheduler.step()
-        #optimizer.step()
+        optimizer.step()
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)

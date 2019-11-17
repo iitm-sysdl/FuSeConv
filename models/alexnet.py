@@ -116,7 +116,6 @@ class AlexNetFriendly(nn.Module):
 def test():
     net=AlexNet()
     x = torch.randn(1, 3, 224, 224)
-    y = net(x)
     n2 = AlexNetFriendly()
     z = n2(x) 
     print(y.shape, z.shape, net, n2)

@@ -18,6 +18,7 @@ class Fire(nn.Module):
         self.expand3x3_activation = nn.ReLU(inplace=True)
 
     def forward(self, x):
+        print(x.shape)
         x = self.squeeze_activation(self.squeeze(x))
         return torch.cat([
             self.expand1x1_activation(self.expand1x1(x)),
@@ -41,6 +42,7 @@ class FireFriendly(nn.Module):
         self.expand3x3_activation = nn.ReLU(inplace=True)
 
     def forward(self, x):
+        print(x.shape)
         out = self.squeeze_activation((self.squeeze(x)))
         out1 = self.expand1x1_activation((self.expand1x1(out)))
         out2 = self.expand3x3_activation((torch.cat( [self.expand1x3(out), self.expand3x1(out)], 1) ))
@@ -98,16 +100,16 @@ class SqueezeNetFriendly(nn.Module):
             nn.Conv2d(3, 64, kernel_size=3, stride=2),
             nn.ReLU(inplace=True),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-            Fire(64, 16, 64, 64),
-            Fire(128, 16, 64, 64),
+            FireFriendly(64, 16, 64, 64),
+            FireFriendly(128, 16, 64, 64),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-            Fire(128, 32, 128, 128),
-            Fire(256, 32, 128, 128),
+            FireFriendly(128, 32, 128, 128),
+            FireFriendly(256, 32, 128, 128),
             nn.MaxPool2d(kernel_size=3, stride=2, ceil_mode=True),
-            Fire(256, 48, 192, 192),
-            Fire(384, 48, 192, 192),
-            Fire(384, 64, 256, 256),
-            Fire(512, 64, 256, 256),
+            FireFriendly(256, 48, 192, 192),
+            FireFriendly(384, 48, 192, 192),
+            FireFriendly(384, 64, 256, 256),
+            FireFriendly(512, 64, 256, 256),
         )
         # Final convolution is initialized differently from the rest
         final_conv = nn.Conv2d(512, self.num_classes, kernel_size=1)
@@ -134,27 +136,12 @@ class SqueezeNetFriendly(nn.Module):
         print(x.shape)
         return torch.flatten(x, 1)
 
-class Fix(nn.Module):
-    def __init__(self):
-        super(Fix, self).__init__()
-        self.drop = nn.Dropout(p=0.5)
-        self.final_conv = nn.Conv2d(512, 1000, kernel_size=1)
-        self.re = nn.ReLU(inplace=True)
-        self.adap = nn.AdaptiveAvgPool2d((1, 1))
-    
-    def forward(self, x):
-        x = self.drop(x)
-        x = self.final_conv(x)
-        x = self.re(x)
-        x = self.adap(x)   
-        return x
-
 def test():
     net = SqueezeNet()
     state_dict = torch.load('../pretrainedmodels/squeezenet.pth')
     net.load_state_dict(state_dict, strict=True)
-    #x = torch.rand(1,3,224,224)
-    #y = net(x)
+    x = torch.rand(1,3,224,224)
+    y = net(x)
     cfg = [     [64, 16, 64, 64],
             [128, 16, 64, 64],
             [128, 32, 128, 128],
@@ -164,23 +151,25 @@ def test():
             [384, 64, 256, 256],
             [512, 64, 256, 256],
     ]
-    FireLayers=[3,4,6,7,9,10,11,12]
-    change = ['1', '2']
-    for x in change:
-        x = int(x)
-        i = FireLayers[x-1]
-        net.features[i] = FireFriendly(*cfg[x-1])
+    # FireLayers=[3,4,6,7,9,10,11,12]
+    # change = ['1', '2']
+    # for x in change:
+    #     x = int(x)
+    #     i = FireLayers[x-1]
+    #     net.features[i] = FireFriendly(*cfg[x-1])
     
-    for param in net.parameters():
-      	param.requires_grad = False
+    # for param in net.parameters():
+    #   	param.requires_grad = False
     
-    for x in change:
-        x = int(x)
-        i = FireLayers[x-1]
-        for param in net.features[i].parameters():
-      	    param.requires_grad = True
+    # for x in change:
+    #     x = int(x)
+    #     i = FireLayers[x-1]
+    #     for param in net.features[i].parameters():
+    #   	    param.requires_grad = True
 
-    print(net)
+    # print(net)
+    #for param_tensor in net.state_dict():
+    #    print(param_tensor, "\t", net.state_dict()[param_tensor].size())
 test()
         
         
