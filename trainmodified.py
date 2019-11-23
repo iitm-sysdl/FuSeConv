@@ -81,6 +81,25 @@ small = [
                 [ 96, 96, 5, 1, 576, True,  'HS'],
                 [ 96, 96, 5, 1, 576, True,  'HS'],
             ]
+large = [
+                # inp, oup, kernel,  stride, expa, se ,nl,  
+                [ 16,   16,    3,    1,     16,     False, 'RE'],
+                [ 16,   24,    3,    2,     64,     False, 'RE'],
+                [ 24,   24,    3,    1,     72,     False, 'RE'],
+                [ 24,   40,    5,    2,     72,     True,  'RE'],
+                [ 40,   40,    5,    1,     120,    True,  'RE'],
+                [ 40,   40,    5,    1,     120,    True,  'RE'],
+                [ 40,   80,    3,    2,     240,    False, 'HS'],
+                [ 80,   80,    3,    1,     200,    False, 'HS'],
+                [ 80,   80,    3,    1,     184,    False, 'HS'],
+                [ 80,   80,    3,    1,     184,    False, 'HS'],
+                [ 80,   112,   3,    1,     480,    True,  'HS'],
+                [112,   112,   3,    1,     672,    True,  'HS'],
+                [112,   160,   5,    2,     672,    True,  'HS'],
+                [160,   160,   5,    1,     960,    True,  'HS'],
+                [160,   160,   5,    1,     960,    True,  'HS'],
+            ]
+                
 l = []
 for name, child in net.named_children():
     if name == 'features':
