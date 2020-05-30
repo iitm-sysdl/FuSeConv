@@ -42,6 +42,7 @@ class FriendlyBlock(nn.Module):
 
 class MobileNet(nn.Module):
     # (128,2) means conv planes=128, conv stride=2, by default conv stride=1
+    depth_mul = 0.25
     cfg = [64, (128,2), 128, (256,2), 256, (512,2), 512, 512, 512, 512, 512, (1024,2), 1024]
 
     def __init__(self, num_classes=1000):
@@ -49,12 +50,12 @@ class MobileNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(in_planes=32)
-        self.linear = nn.Linear(1024, num_classes)
+        self.linear = nn.Linear(int(1024 * self.depth_mul), num_classes)
 
     def _make_layers(self, in_planes):
         layers = []
         for x in self.cfg:
-            out_planes = x if isinstance(x, int) else x[0]
+            out_planes = int(x * self.depth_mul) if isinstance(x, int) else int(x[0]*self.depth_mul)
             stride = 1 if isinstance(x, int) else x[1]
             layers.append(Block(in_planes, out_planes, stride))
             in_planes = out_planes
@@ -63,7 +64,7 @@ class MobileNet(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layers(out)
-        out = F.avg_pool2d(out, 7)
+        out = F.avg_pool2d(out, 7, stride=7)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
@@ -102,7 +103,7 @@ def test():
     x = torch.randn(1, 3, 224, 224)
     y = net(x)
     n2 = MobileNet()
-    z = n2(x) 
+    z = n2(x)
     print(y.shape, z.shape)
 
 # test()
