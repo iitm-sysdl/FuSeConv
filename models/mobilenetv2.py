@@ -64,11 +64,12 @@ class InvertedResidual(nn.Module):
 
     def forward(self, x):
         global netEmbedding
-        InvertedResidualEmbedding(x.shape[3], self.in_planes, self.hidden_planes, self.out_planes, self.stride, netEmbedding)
+        InvertedResidualEmbedding(int(x.shape[3]), self.in_planes, self.hidden_planes, self.out_planes, 3, self.stride, netEmbedding)
         if self.use_res_connect:
-            inDim = x.shape[3]
-            return x + self.conv(x)
+            inDim = int(x.shape[3])
+            print(inDim)
             netEmbedding.append([0,0,1,0,0, inDim, inDim, self.out_planes, self.out_planes, 0, 0, 0, inDim*inDim*self.out_planes])
+            return x + self.conv(x)
         else:
             return self.conv(x)
 
@@ -132,7 +133,7 @@ class InvertedResidualFriendly(nn.Module):
 class MobileNetV2(nn.Module):
     def __init__(self,
                  num_classes=1000,
-                 width_mult=1.0,
+                 width_mult=0.25,
                  inverted_residual_setting=None,
                  round_nearest=8,
                  block=None):
@@ -210,10 +211,12 @@ class MobileNetV2(nn.Module):
 
     def _forward(self, x):
         global netEmbedding
-        ConvBNReLUEmbedding(x.shape[3], 3, self.input_C, 3, 2, 1, 1, netEmbedding)
+        print(int(x.shape[3]))
+        ConvBNReLUEmbedding(int(x.shape[3]), 3, self.input_C, 3, 2, 1, 1, netEmbedding)
         x = self.features(x)
-        ConvBNReLUEmbedding(x.shape[3], self.input_C, self.last_channel, 1, 1, 0, 1, netEmbedding) ## How to?
-        pooling(x.shape[3], x.shape[3], self.last_channel, netEmbedding)
+        ConvBNReLUEmbedding(int(x.shape[3]), self.input_C, self.last_channel, 1, 1, 0, 1, netEmbedding) ## How to?
+        pooling(int(x.shape[3]), int(x.shape[3]), self.last_channel, netEmbedding)
+        print(int(x.shape[3]))
         x = x.mean([2, 3])
         print(x.shape)
         ## Can you check if this is right? - x.shape[0]
@@ -227,7 +230,7 @@ class MobileNetV2(nn.Module):
                 data=data+str(itr2)+','
         data=data[:-1]
         data=data+'\n'
-        ofile = open("mv2Embedding_depthMul_1.0.csv", "w")
+        ofile = open("mv2Embedding_depthMul_0.25.csv", "w")
         ofile.write(data)
         ofile.close()
         return x

@@ -56,12 +56,12 @@ class _InvertedResidual(nn.Module):
 
     def forward(self, input):
         global netEmbedding
-        InvertedResidualEmbedding(input.shape[3], self.in_planes, self.hidden_planes, self.out_planes, self.kSize, self.sTride, netEmbedding)
+        InvertedResidualEmbedding(int(input.shape[3]), self.in_planes, self.hidden_planes, self.out_planes, self.kSize, self.sTride, netEmbedding)
 
         if self.apply_residual:
-            inDim = input.shape[3]
-            return self.layers(input) + input
+            inDim = int(input.shape[3])
             netEmbedding.append([0,0,1,0,0, inDim, inDim, self.out_planes, self.out_planes, 0, 0, 0, inDim*inDim*self.out_planes])
+            return self.layers(input) + input
         else:
             return self.layers(input)
 
@@ -149,13 +149,13 @@ class MNASNet(torch.nn.Module):
 
     def forward(self, x):
         global netEmbedding
-        inDim = ConvBNReLUEmbedding(x.shape[3], 3, self.dp[0], 3, 2, 1, 1, netEmbedding)
+        inDim = ConvBNReLUEmbedding(int(x.shape[3]), 3, self.dp[0], 3, 2, 1, 1, netEmbedding)
         inDim = ConvBNReLUEmbedding(inDim, self.dp[0], self.dp[0], 3, 1, 1, self.dp[0], netEmbedding)
         convolution(inDim, self.dp[0], self.dp[1], 1, 1, 0, netEmbedding)
         x = self.layers(x)
         # Equivalent to global avgpool and removing H and W dimensions.
-        inDim = ConvBNReLUEmbedding(x.shape[3], self.dp[7], 1280, 1, 1, 0, 1, netEmbedding)
-        pooling(x.shape[3], x.shape[3], 1280, netEmbedding)
+        inDim = ConvBNReLUEmbedding(int(x.shape[3]), self.dp[7], 1280, 1, 1, 0, 1, netEmbedding)
+        pooling(int(x.shape[3]), int(x.shape[3]), 1280, netEmbedding)
         x = x.mean([2, 3])
         convolution(1, 1280, 1000, 1, 1, 1, netEmbedding)
 
