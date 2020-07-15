@@ -1,6 +1,11 @@
 import torch
 from torch import nn
 import math
+from embedstub import *
+
+
+netEmbedding = []
+
 
 def _make_divisible(v, divisor, min_value=None):
     """
@@ -36,9 +41,12 @@ class InvertedResidual(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio):
         super(InvertedResidual, self).__init__()
         self.stride = stride
+        self.in_planes = inp
+        self.out_planes = oup
         assert stride in [1, 2]
 
         hidden_dim = int(round(inp * expand_ratio))
+        self.hidden_planes = hidden_dim
         self.use_res_connect = self.stride == 1 and inp == oup
 
         layers = []
@@ -55,7 +63,12 @@ class InvertedResidual(nn.Module):
         self.conv = nn.Sequential(*layers)
 
     def forward(self, x):
+        global netEmbedding
+        InvertedResidualEmbedding(int(x.shape[3]), self.in_planes, self.hidden_planes, self.out_planes, 3, self.stride, netEmbedding)
         if self.use_res_connect:
+            inDim = int(x.shape[3])
+            print(inDim)
+            netEmbedding.append([0,0,1,0,0, inDim, inDim, self.out_planes, self.out_planes, 0, 0, 0, inDim*inDim*self.out_planes])
             return x + self.conv(x)
         else:
             return self.conv(x)
@@ -86,13 +99,13 @@ class InvertedResidualFriendly(nn.Module):
     def forward(self, x):
         if self.expand_ratio == 1:
             out1, out2 = x.chunk(2,1)
-            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)	
+            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)
             out = self.r2(self.bn2(out))
             out = self.bn3(self.conv3(out))
         else:
             out = self.r1(self.bn1(self.conv1(x)))
             out1, out2 = out.chunk(2,1)
-            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)    
+            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)
             out = self.r2(self.bn2(out))
             out = self.bn3(self.conv3(out))
 
@@ -120,7 +133,7 @@ class InvertedResidualFriendly(nn.Module):
 class MobileNetV2(nn.Module):
     def __init__(self,
                  num_classes=1000,
-                 width_mult=1.0,
+                 width_mult=0.25,
                  inverted_residual_setting=None,
                  round_nearest=8,
                  block=None):
@@ -137,7 +150,7 @@ class MobileNetV2(nn.Module):
 
         """
         super(MobileNetV2, self).__init__()
-
+        global netEmbedding
         if block is None:
             block = InvertedResidual
         input_channel = 32
@@ -162,6 +175,7 @@ class MobileNetV2(nn.Module):
 
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult, round_nearest)
+        self.input_C = input_channel
         self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
         features = [ConvBNReLU(3, input_channel, stride=2)]
         # building inverted residual blocks
@@ -196,9 +210,29 @@ class MobileNetV2(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def _forward(self, x):
+        global netEmbedding
+        print(int(x.shape[3]))
+        ConvBNReLUEmbedding(int(x.shape[3]), 3, self.input_C, 3, 2, 1, 1, netEmbedding)
         x = self.features(x)
+        ConvBNReLUEmbedding(int(x.shape[3]), self.input_C, self.last_channel, 1, 1, 0, 1, netEmbedding) ## How to?
+        pooling(int(x.shape[3]), int(x.shape[3]), self.last_channel, netEmbedding)
+        print(int(x.shape[3]))
         x = x.mean([2, 3])
+        print(x.shape)
+        ## Can you check if this is right? - x.shape[0]
+        convolution(1, self.last_channel, 1000, 1, 1, 1, netEmbedding)
         x = self.classifier(x)
+        ### Dump netEmbedding
+
+        data=''
+        for itr in netEmbedding:
+            for itr2 in itr:
+                data=data+str(itr2)+','
+        data=data[:-1]
+        data=data+'\n'
+        ofile = open("mv2Embedding_depthMul_0.25.csv", "w")
+        ofile.write(data)
+        ofile.close()
         return x
 
     # Allow for accessing forward method in a inherited class
