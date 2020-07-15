@@ -24,14 +24,14 @@ class ComputeLatency:
         s_h, s_w = module.stride
         p_h, p_w = module.padding
         g = module.groups
-        h = inDim_h + 2*p_h
-        w = inDim_w + 2*p_w
+        inDim_h = inDim_h + 2*p_h
+        inDim_w = inDim_w + 2*p_w
         if g == 1:
             t,u = sram_traffic(dimension_rows=arraySize, dimension_cols=arraySize, 
-                            ifmap_h=h, ifmap_w=w,
+                            ifmap_h=inDim_h, ifmap_w=inDim_w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=inC,strides=s_h, num_filt=outC)
-            # print('Group=1 ',inDim_h, inC, outC, h, k_h, t, u)
+            print('Group=1 ',inDim_h, inC, outC, k_h, t, u)
             t = int(t)
         else:
             if k_h == 1:
@@ -52,13 +52,13 @@ class ComputeLatency:
                 t = time
             else:
                 t,u = sram_traffic(dimension_rows=arraySize, dimension_cols=arraySize, 
-                            ifmap_h=h, ifmap_w=w,
+                            ifmap_h=inDim_h, ifmap_w=inDim_w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=1,strides=s_h, num_filt=1)
                 t = int(t)
                 t = t*outC
             
-            # print('Group > 1 ',inDim_h, inC, outC, h, k_h, t)
+            print('Group > 1 ',inDim_h, inC, outC, k_h, t)
 
         self.time += t
     
@@ -79,5 +79,5 @@ x = torch.rand([1, 3, 224, 224])
 model = MobileNetV2()
 t1 = latency(model, x)
 model = MobileNetV2Friendly()
-t2 = latency(model, x)
-print(t1, t2, t1/t2)
+# t2 = latency(model, x)
+print(t1)#, t2, t1/t2)
