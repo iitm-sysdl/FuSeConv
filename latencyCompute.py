@@ -8,7 +8,7 @@ from models.mobilenetv2 import MobileNetV2Friendly
 
 from utils import sram_traffic
 
-arraySize = 64
+arraySize = 32
 
 class ComputeLatency:
     def __init__(self):
@@ -31,7 +31,7 @@ class ComputeLatency:
                             ifmap_h=h, ifmap_w=w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=inC,strides=s_h, num_filt=outC)
-            print('Group=1 ',inDim_h, inC, outC, h, k_h, t, u)
+            # print('Group=1 ',inDim_h, inC, outC, h, k_h, t, u)
             t = int(t)
         else:
             if k_h == 1:
@@ -58,26 +58,26 @@ class ComputeLatency:
                 t = int(t)
                 t = t*outC
             
-            print('Group > 1 ',inDim_h, inC, outC, h, k_h, t)
+            # print('Group > 1 ',inDim_h, inC, outC, h, k_h, t)
 
         self.time += t
     
     def clear(self):
         self.time = 0
 
-x = torch.rand([1, 3, 224, 224])
-models = MobileNetV2()
-latency = ComputeLatency()
-for layer in models.modules():
-    if isinstance(layer, nn.Conv2d):
-        layer.register_forward_hook(latency)
-models(x)
-print(latency.time)
+def latency(model, x):
+    hookfn = ComputeLatency()
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d):
+            layer.register_forward_hook(hookfn)
+    model(x)
+    lat = hookfn.time
+    hookfn.clear()
+    return lat
 
-models = MobileNetV2Friendly()
-latency = ComputeLatency()
-for layer in models.modules():
-    if isinstance(layer, nn.Conv2d):
-        layer.register_forward_hook(latency)
-models(x)
-print(latency.time)
+x = torch.rand([1, 3, 224, 224])
+model = MobileNetV2()
+t1 = latency(model, x)
+model = MobileNetV2Friendly()
+t2 = latency(model, x)
+print(t1, t2, t1/t2)
