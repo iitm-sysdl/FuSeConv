@@ -1,11 +1,6 @@
 import torch
 from torch import nn
 import math
-from embedstub import *
-
-
-netEmbedding = []
-
 
 def _make_divisible(v, divisor, min_value=None):
     """
@@ -41,12 +36,9 @@ class InvertedResidual(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio):
         super(InvertedResidual, self).__init__()
         self.stride = stride
-        self.in_planes = inp
-        self.out_planes = oup
         assert stride in [1, 2]
 
         hidden_dim = int(round(inp * expand_ratio))
-        self.hidden_planes = hidden_dim
         self.use_res_connect = self.stride == 1 and inp == oup
 
         layers = []
@@ -63,12 +55,7 @@ class InvertedResidual(nn.Module):
         self.conv = nn.Sequential(*layers)
 
     def forward(self, x):
-        global netEmbedding
-        InvertedResidualEmbedding(int(x.shape[3]), self.in_planes, self.hidden_planes, self.out_planes, 3, self.stride, netEmbedding)
         if self.use_res_connect:
-            inDim = int(x.shape[3])
-            print(inDim)
-            netEmbedding.append([0,0,1,0,0, inDim, inDim, self.out_planes, self.out_planes, 0, 0, 0, inDim*inDim*self.out_planes])
             return x + self.conv(x)
         else:
             return self.conv(x)
@@ -99,13 +86,13 @@ class InvertedResidualFriendly(nn.Module):
     def forward(self, x):
         if self.expand_ratio == 1:
             out1, out2 = x.chunk(2,1)
-            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)
+            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)	
             out = self.r2(self.bn2(out))
             out = self.bn3(self.conv3(out))
         else:
             out = self.r1(self.bn1(self.conv1(x)))
             out1, out2 = out.chunk(2,1)
-            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)
+            out = torch.cat([self.conv2_h(out1), self.conv2_v(out2)], 1)    
             out = self.r2(self.bn2(out))
             out = self.bn3(self.conv3(out))
 
@@ -133,7 +120,7 @@ class InvertedResidualFriendly(nn.Module):
 class MobileNetV2(nn.Module):
     def __init__(self,
                  num_classes=1000,
-                 width_mult=0.25,
+                 width_mult=1.0,
                  inverted_residual_setting=None,
                  round_nearest=8,
                  block=None):
@@ -150,7 +137,7 @@ class MobileNetV2(nn.Module):
 
         """
         super(MobileNetV2, self).__init__()
-        global netEmbedding
+
         if block is None:
             block = InvertedResidual
         input_channel = 32
@@ -175,7 +162,6 @@ class MobileNetV2(nn.Module):
 
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult, round_nearest)
-        self.input_C = input_channel
         self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
         features = [ConvBNReLU(3, input_channel, stride=2)]
         # building inverted residual blocks
@@ -210,29 +196,96 @@ class MobileNetV2(nn.Module):
                 nn.init.zeros_(m.bias)
 
     def _forward(self, x):
-        global netEmbedding
-        print(int(x.shape[3]))
-        ConvBNReLUEmbedding(int(x.shape[3]), 3, self.input_C, 3, 2, 1, 1, netEmbedding)
         x = self.features(x)
-        ConvBNReLUEmbedding(int(x.shape[3]), self.input_C, self.last_channel, 1, 1, 0, 1, netEmbedding) ## How to?
-        pooling(int(x.shape[3]), int(x.shape[3]), self.last_channel, netEmbedding)
-        print(int(x.shape[3]))
         x = x.mean([2, 3])
-        print(x.shape)
-        ## Can you check if this is right? - x.shape[0]
-        convolution(1, self.last_channel, 1000, 1, 1, 1, netEmbedding)
         x = self.classifier(x)
-        ### Dump netEmbedding
+        return x
 
-        data=''
-        for itr in netEmbedding:
-            for itr2 in itr:
-                data=data+str(itr2)+','
-        data=data[:-1]
-        data=data+'\n'
-        ofile = open("mv2Embedding_depthMul_0.25.csv", "w")
-        ofile.write(data)
-        ofile.close()
+    # Allow for accessing forward method in a inherited class
+    forward = _forward
+
+class MobileNetV2Friendly(nn.Module):
+    def __init__(self,
+                 num_classes=1000,
+                 width_mult=1.0,
+                 inverted_residual_setting=None,
+                 round_nearest=8,
+                 block=None):
+        """
+        MobileNet V2 main class
+
+        Args:
+            num_classes (int): Number of classes
+            width_mult (float): Width multiplier - adjusts number of channels in each layer by this amount
+            inverted_residual_setting: Network structure
+            round_nearest (int): Round the number of channels in each layer to be a multiple of this number
+            Set to 1 to turn off rounding
+            block: Module specifying inverted residual building block for mobilenet
+
+        """
+        super(MobileNetV2Friendly, self).__init__()
+
+        if block is None:
+            block = InvertedResidualFriendly
+        input_channel = 32
+        last_channel = 1280
+
+        if inverted_residual_setting is None:
+            inverted_residual_setting = [
+                # t, c, n, s
+                [1, 16, 1, 1],
+                [6, 24, 2, 2],
+                [6, 32, 3, 2],
+                [6, 64, 4, 2],
+                [6, 96, 3, 1],
+                [6, 160, 3, 2],
+                [6, 320, 1, 1],
+            ]
+
+        # only check the first element, assuming user knows t,c,n,s are required
+        if len(inverted_residual_setting) == 0 or len(inverted_residual_setting[0]) != 4:
+            raise ValueError("inverted_residual_setting should be non-empty "
+                             "or a 4-element list, got {}".format(inverted_residual_setting))
+
+        # building first layer
+        input_channel = _make_divisible(input_channel * width_mult, round_nearest)
+        self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
+        features = [ConvBNReLU(3, input_channel, stride=2)]
+        # building inverted residual blocks
+        for t, c, n, s in inverted_residual_setting:
+            output_channel = _make_divisible(c * width_mult, round_nearest)
+            for i in range(n):
+                stride = s if i == 0 else 1
+                features.append(block(input_channel, output_channel, stride, expand_ratio=t))
+                input_channel = output_channel
+        # building last several layers
+        features.append(ConvBNReLU(input_channel, self.last_channel, kernel_size=1))
+        # make it nn.Sequential
+        self.features = nn.Sequential(*features)
+
+        # building classifier
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(self.last_channel, num_classes),
+        )
+
+        # weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+
+    def _forward(self, x):
+        x = self.features(x)
+        x = x.mean([2, 3])
+        x = self.classifier(x)
         return x
 
     # Allow for accessing forward method in a inherited class

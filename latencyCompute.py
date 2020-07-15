@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torchvision
 
+from models.mobilenetv2 import MobileNetV2
+from models.mobilenetv2 import MobileNetV2Friendly
+
 from utils import sram_traffic
 
 arraySize = 64
@@ -43,15 +46,23 @@ class ComputeLatency:
     def clear(self):
         self.time = 0
 
-models = torchvision.models.mobilenet_v2()
-
-
 x = torch.rand([1, 3, 224, 224])
-latency = ComputeLatency()
-for layer in models.modules():
-    if isinstance(layer, nn.Conv2d):
-        layer.register_forward_hook(latency)
-print(models)
+models = MobileNetV2()
+# latency = ComputeLatency()
+# for layer in models.modules():
+#     if isinstance(layer, nn.Conv2d):
+#         layer.register_forward_hook(latency)
+# print(models)
 models(x)
-print(latency.time)
+print(models)
+models = MobileNetV2Friendly()
+# latency = ComputeLatency()
+# for layer in models.modules():
+#     if isinstance(layer, nn.Conv2d):
+#         layer.register_forward_hook(latency)
+# print(models)
+models(x)
+print(models)
+
+# print(latency.time)
 # print(models)
