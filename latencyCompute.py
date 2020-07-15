@@ -1,3 +1,4 @@
+import math
 import torch 
 import torch.nn as nn
 import torchvision
@@ -30,16 +31,34 @@ class ComputeLatency:
                             ifmap_h=h, ifmap_w=w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=inC,strides=s_h, num_filt=outC)
-            # print('Group=1 ',inDim_h, inC, outC, h, k_h, t, u)
+            print('Group=1 ',inDim_h, inC, outC, h, k_h, t, u)
             t = int(t)
         else:
-            t,u = sram_traffic(dimension_rows=arraySize, dimension_cols=arraySize, 
+            if k_h == 1:
+                num1Dconv = inDim_h * outC 
+                numFolds = num1Dconv/arraySize
+                oneFoldTime = arraySize + k_w
+                num1DconvRow = inDim_h/arraySize
+                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                time = math.ceil(time)
+                t = time
+            elif k_w ==1 :
+                num1Dconv = inDim_w * outC
+                numFolds = num1Dconv/arraySize
+                oneFoldTime = arraySize + k_h
+                num1DconvRow = inDim_w/arraySize
+                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                time = math.ceil(time)
+                t = time
+            else:
+                t,u = sram_traffic(dimension_rows=arraySize, dimension_cols=arraySize, 
                             ifmap_h=h, ifmap_w=w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=1,strides=s_h, num_filt=1)
-            t = int(t)
-            t = t*outC
-            # print('Group > 1 ',inDim_h, inC, outC, h, k_h, t, u)
+                t = int(t)
+                t = t*outC
+            
+            print('Group > 1 ',inDim_h, inC, outC, h, k_h, t)
 
         self.time += t
     
@@ -48,21 +67,17 @@ class ComputeLatency:
 
 x = torch.rand([1, 3, 224, 224])
 models = MobileNetV2()
-# latency = ComputeLatency()
-# for layer in models.modules():
-#     if isinstance(layer, nn.Conv2d):
-#         layer.register_forward_hook(latency)
-# print(models)
+latency = ComputeLatency()
+for layer in models.modules():
+    if isinstance(layer, nn.Conv2d):
+        layer.register_forward_hook(latency)
 models(x)
-print(models)
-models = MobileNetV2Friendly()
-# latency = ComputeLatency()
-# for layer in models.modules():
-#     if isinstance(layer, nn.Conv2d):
-#         layer.register_forward_hook(latency)
-# print(models)
-models(x)
-print(models)
+print(latency.time)
 
-# print(latency.time)
-# print(models)
+models = MobileNetV2Friendly()
+latency = ComputeLatency()
+for layer in models.modules():
+    if isinstance(layer, nn.Conv2d):
+        layer.register_forward_hook(latency)
+models(x)
+print(latency.time)
