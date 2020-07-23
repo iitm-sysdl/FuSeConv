@@ -128,7 +128,6 @@ def main():
         train(net, trainloader, criterion, optimizer, epoch)
         lr_scheduler.step()
         acc = test(net, testloader, criterion, epoch)
-        acc = 100.*correct/total
         state = {'net': net.state_dict(),
                 'acc': acc,
                 'epoch': epoch}
