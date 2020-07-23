@@ -54,7 +54,7 @@ def test(net, testloader, criterion, epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = inputs.cuda(), targets.cuda()
             outputs = net(inputs)
             loss = criterion(outputs, targets)
 
@@ -120,7 +120,7 @@ def main():
         startEpoch = checkpoint['epoch']
 
     criterion = nn.CrossEntropyLoss().cuda()    
-    optimizer = torch.optim.SGD(net.parameters(), 0.1, mmomentum=0.9, weight_decay=5e-4)
+    optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                     milestones=[100, 150], gamma=0.1, last_epoch=startEpoch - 1)
     
