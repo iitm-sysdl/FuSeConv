@@ -868,4 +868,69 @@ def gen_write_trace(
     return(local_cycle + cycle)
 # End of gen_write_trace()
 
+class ForwardHook:
+    def __init__(self, arraySize):
+        self.time = 0
+        self.arraySize = arraySize
+    def __call__(self, module, module_in, module_out):
+        inT = module_in[0]
+        inDim_h, inDim_w = (inT.shape[2], inT.shape[3])
+        inC = module.in_channels
+        outC = module.out_channels
+        k_h, k_w = module.kernel_size
+        s_h, s_w = module.stride
+        p_h, p_w = module.padding
+        g = module.groups
+        inDim_h = inDim_h + 2*p_h
+        inDim_w = inDim_w + 2*p_w
+        if g == 1:
+            t,u = sram_traffic(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+                            ifmap_h=inDim_h, ifmap_w=inDim_w,
+                            filt_h=k_h, filt_w=k_w,
+                            num_channels=inC,strides=s_h, num_filt=outC)
+            print('Group=1 ',inDim_h, inC, outC, k_h, t, u)
+            t = int(t)
+        else:
+            if k_h == 1:
+                num1Dconv = inDim_h * outC 
+                numFolds = num1Dconv/self.arraySize
+                oneFoldTime = self.arraySize + k_w
+                num1DconvRow = inDim_h/self.arraySize
+                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                time = math.ceil(time)
+                t = time
+            elif k_w ==1 :
+                num1Dconv = inDim_w * outC
+                numFolds = num1Dconv/self.arraySize
+                oneFoldTime = self.arraySize + k_h
+                num1DconvRow = inDim_w/self.arraySize
+                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                time = math.ceil(time)
+                t = time
+            else:
+                t,u = sram_traffic(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+                            ifmap_h=inDim_h, ifmap_w=inDim_w,
+                            filt_h=k_h, filt_w=k_w,
+                            num_channels=1,strides=s_h, num_filt=1)
+                t = int(t)
+                t = t*outC
+            
+            print('Group > 1 ',inDim_h, inC, outC, k_h, t)
 
+        self.time += t
+    
+    def clear(self):
+        self.time = 0
+
+def GetModelProp(model, x, arraySize=8):
+    flops, parameter = get_model_complexity_info(model, (x.shape[2], x.shape[3]), print_per_layer_stat=False, as_strings=False)
+    
+    hookfn = ForwardHook(arraySize)
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d):
+            layer.register_forward_hook(hookfn)
+    model(x)
+    latency = hookfn.time
+    hookfn.clear()
+
+    return parameters, flops, latency
