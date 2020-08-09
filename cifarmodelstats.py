@@ -40,7 +40,7 @@ def main():
                 flops, params = getModelProp(net, x)
                 latency = []
                 for size in [4, 8, 16, 32]:
-                    latency.append(getModelLatency(model, x, arraySize=size))
+                    latency.append(getModelLatency(net, x, arraySize=size))
                 latency = ' , '.join(str(i) for i in latency)
                 s = network + ' , ' + str(numClasses) + ' , ' + baseline + ' , ' + str(flops) + ' , ' + str(params) + ' , ' + latemcy + ' , ' + '\n'  
                 meta.write(s)    
