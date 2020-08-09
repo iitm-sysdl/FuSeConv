@@ -922,9 +922,11 @@ class ForwardHook:
     def clear(self):
         self.time = 0
 
-def GetModelProp(model, x, arraySize=8):
+def getModelProp(model, x):
     flops, parameter = get_model_complexity_info(model, (x.shape[2], x.shape[3]), print_per_layer_stat=False, as_strings=False)
-    
+    return flops, parameter
+
+def getModelLatency(model, x, arraySize=8):    
     hookfn = ForwardHook(arraySize)
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d):
@@ -933,4 +935,5 @@ def GetModelProp(model, x, arraySize=8):
     latency = hookfn.time
     hookfn.clear()
 
-    return parameters, flops, latency
+    return latency
+
