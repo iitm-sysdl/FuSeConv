@@ -13,11 +13,11 @@ from cifarmodels import *
 
 def dumpData(flag, string):
     if flag == 'train':
-        meta = open(args.name+'metadataTrain.txt', "a")
+        meta = open(args.name+'/metadataTrain.txt', "a")
         meta.write(string)
         meta.close()
     else:
-        meta = open(args.name+'metadataTest.txt', "a")
+        meta = open(args.name+'/metadataTest.txt', "a")
         meta.write(string)
         meta.close()
 
@@ -99,16 +99,20 @@ def main():
             net = ResNet50(numClasses)
         elif args.Network == 'MobileNet':
             net = MobileNetV2(numClasses)
+        elif args.Network == 'EfficientNet':
+            net = EfficientNetB0(numClasses)
+        elif args.Network == 'SqueezeNet':
+            net = SqueezeNet(numClasses)
     else:
         if args.Network == 'ResNet':
             net = ResNet50Friendly(numClasses)
         elif args.Network == 'MobileNet':
             net = MobileNetV2Friendly(numClasses)
+        elif args.Network == 'EfficientNet':
+            net = EfficientNetB0Friendly(numClasses)
+        elif args.Network == 'SqueezeNet':
+            net = SqueezeNetFriendly(numClasses)
     
-    # parameters, flops, latency = GetModelProp(net, x=torch.rand([1,3,32,32]), arraySize=8)
-    # print('Parameters: %d' %(parameters))
-    # print('FLOPS : %d' %(flops))
-    # print('Latency: %d' %(latency))
     net.cuda()
     bestAcc = 0
     startEpoch = 0
@@ -136,6 +140,11 @@ def main():
             bestAcc = acc
         else:
             torch.save(state, args.name+'/LastEpoch.t7')
+    
+    meta = open(args.name+'/stats.txt', "a")
+    s = 'baseline' if args.baseline==True else 'friendly' 
+    meta.write(args.D + ' , ' + args.N + ' , ' + s + ' , ' + str(bestAcc) + '\n')    
+    meta.close()
 
 if __name__ == '__main__':
     random.seed(42)
