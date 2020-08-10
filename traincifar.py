@@ -136,7 +136,7 @@ def main():
         acc = test(net, testloader, criterion, epoch)
         state = {'net': net.state_dict(),
                 'acc': acc,
-                'epoch': epoch,
+                'epoch': epoch+1,
                 'optimizer' : optimizer.state_dict()
                 }
         if acc > bestAcc:
