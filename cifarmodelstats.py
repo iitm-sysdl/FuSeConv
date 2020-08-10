@@ -42,7 +42,7 @@ def main():
                 for size in [4, 8, 16, 32]:
                     latency.append(getModelLatency(net, x, arraySize=size))
                 latency = ' , '.join(str(i) for i in latency)
-                s = network + ' , ' + str(numClasses) + ' , ' + baseline + ' , ' + str(flops) + ' , ' + str(params) + ' , ' + latemcy + ' , ' + '\n'  
+                s = network + ' , ' + str(numClasses) + ' , ' + baseline + ' , ' + str(flops) + ' , ' + str(params) + ' , ' + latency + ' , ' + '\n'  
                 meta.write(s)    
     meta.close()
     

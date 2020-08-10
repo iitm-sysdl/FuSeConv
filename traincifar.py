@@ -113,28 +113,32 @@ def main():
         elif args.Network == 'SqueezeNet':
             net = SqueezeNetFriendly(numClasses)
     
+    criterion = nn.CrossEntropyLoss().cuda()    
+    optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                    milestones=[100, 150, 200, 250], gamma=0.1)
+    
     net.cuda()
     bestAcc = 0
     startEpoch = 0
     if args.resume == True:
-        assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('./checkpoint/'+args.name+'/BestModel.t7')
+        assert os.path.isdir(args.name), 'Error: no checkpoint directory found!'
+        checkpoint = torch.load(args.name+'/BestModel.t7')
         net.load_state_dict(checkpoint['net'])
         bestAcc = checkpoint['acc']
-        startEpoch = checkpoint['epoch']
-
-    criterion = nn.CrossEntropyLoss().cuda()    
-    optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                    milestones=[100, 150], gamma=0.1, last_epoch=startEpoch - 1)
+        startEpoch = checkpoint['epoch'] 
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
     
-    for epoch in range(startEpoch, 200):
+    for epoch in range(startEpoch, 300):
         train(net, trainloader, criterion, optimizer, epoch)
         lr_scheduler.step()
         acc = test(net, testloader, criterion, epoch)
         state = {'net': net.state_dict(),
                 'acc': acc,
-                'epoch': epoch}
+                'epoch': epoch,
+                'optimizer' : optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler}
         if acc > bestAcc:
             torch.save(state, args.name+'/BestModel.t7')
             bestAcc = acc
@@ -143,7 +147,7 @@ def main():
     
     meta = open(args.name+'/stats.txt', "a")
     s = 'baseline' if args.baseline==True else 'friendly' 
-    meta.write(args.D + ' , ' + args.N + ' , ' + s + ' , ' + str(bestAcc) + '\n')    
+    meta.write(args.Dataset + ' , ' + args.Network + ' , ' + s + ' , ' + str(bestAcc) + '\n')    
     meta.close()
 
 if __name__ == '__main__':
