@@ -115,8 +115,6 @@ def main():
     
     criterion = nn.CrossEntropyLoss().cuda()    
     optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                    milestones=[100, 150, 200, 250], gamma=0.1)
     
     net.cuda()
     bestAcc = 0
@@ -128,7 +126,9 @@ def main():
         bestAcc = checkpoint['acc']
         startEpoch = checkpoint['epoch'] 
         optimizer.load_state_dict(checkpoint['optimizer'])
-        lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+
+    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                    milestones=[100, 150, 200, 250], gamma=0.1, last_epoch=startEpoch-1)
     
     for epoch in range(startEpoch, 300):
         train(net, trainloader, criterion, optimizer, epoch)
@@ -137,8 +137,8 @@ def main():
         state = {'net': net.state_dict(),
                 'acc': acc,
                 'epoch': epoch,
-                'optimizer' : optimizer.state_dict(),
-                'lr_scheduler': lr_scheduler}
+                'optimizer' : optimizer.state_dict()
+                }
         if acc > bestAcc:
             torch.save(state, args.name+'/BestModel.t7')
             bestAcc = acc
