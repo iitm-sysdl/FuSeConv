@@ -169,6 +169,7 @@ class EfficientNet(nn.Module):
         self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(block, in_channels=32)
         self.linear = nn.Linear(cfg['out_channels'][-1], num_classes)
+        self._initialize_weights()
 
     def _make_layers(self, block, in_channels):
         layers = []
@@ -201,6 +202,20 @@ class EfficientNet(nn.Module):
             out = F.dropout(out, p=dropout_rate)
         out = self.linear(out)
         return out
+    
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
 
 cfg = {
@@ -212,6 +227,7 @@ cfg = {
         'dropout_rate': 0.2,
         'drop_connect_rate': 0.2,
     }
+    
 def EfficientNetB0(num_classes=100):
     return EfficientNet(Block, cfg, num_classes)
 def EfficientNetB0Friendly(num_classes=100):

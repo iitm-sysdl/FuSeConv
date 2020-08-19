@@ -1,5 +1,6 @@
 import os
 import torch
+import wandb
 import random
 import argparse
 import torchvision
@@ -46,6 +47,9 @@ def train(net, trainloader, criterion, optimizer, epoch):
 
     string = str(epoch) + ',' + str(train_loss) + ',' + str(correct*1.0/total) + '\n'
     dumpData('train', string)
+    wandb.log({
+        "Train Loss": train_loss,
+        "Train Accuracy": 100*correct/total})
 
 def test(net, testloader, criterion, epoch):
     net.eval()
@@ -68,9 +72,19 @@ def test(net, testloader, criterion, epoch):
 
     string = str(epoch) + ',' + str(test_loss) + ',' + str(correct*1.0/total) + '\n'
     dumpData('test', string)
+    wandb.log({
+        "Test Loss": test_loss,
+        "Test Accuracy": 100*correct/total})
     return correct*1.0/total
 
 def main():
+    wandb.init(name=args.name, project="cifar-results")
+    # config = wandb.config
+    # config.batch_size = 128
+    # config.epochs = 100
+    # config.lr = 0.1
+    # config.momentum = 0.9           
+    
     transform_train = transforms.Compose([
                         transforms.RandomCrop(32, padding=4),
                         transforms.RandomHorizontalFlip(),
@@ -115,8 +129,9 @@ def main():
     
     criterion = nn.CrossEntropyLoss().cuda()    
     optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
-    
+
     net.cuda()
+    wandb.watch(net, log="all")
     bestAcc = 0
     startEpoch = 0
     if args.resume == True:
@@ -128,9 +143,9 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                    milestones=[100, 150, 200, 250], gamma=0.1, last_epoch=startEpoch-1)
+                    milestones=[20, 40, 60, 80], gamma=0.1, last_epoch=startEpoch-1)
     
-    for epoch in range(startEpoch, 300):
+    for epoch in range(startEpoch, 100):
         train(net, trainloader, criterion, optimizer, epoch)
         lr_scheduler.step()
         acc = test(net, testloader, criterion, epoch)
@@ -142,6 +157,7 @@ def main():
         if acc > bestAcc:
             torch.save(state, args.name+'/BestModel.t7')
             bestAcc = acc
+            wandb.save('BestModel.h5')
         else:
             torch.save(state, args.name+'/LastEpoch.t7')
     
