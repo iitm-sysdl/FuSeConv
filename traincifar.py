@@ -49,7 +49,7 @@ def train(net, trainloader, criterion, optimizer, epoch):
     dumpData('train', string)
     wandb.log({
         "Train Loss": train_loss,
-        "Train Accuracy": 100*correct/total})
+        "Train Accuracy": 100*correct/total}, step=epoch)
 
 def test(net, testloader, criterion, epoch):
     net.eval()
@@ -74,7 +74,7 @@ def test(net, testloader, criterion, epoch):
     dumpData('test', string)
     wandb.log({
         "Test Loss": test_loss,
-        "Test Accuracy": 100*correct/total})
+        "Test Accuracy": 100*correct/total}, step=epoch)
     return correct*1.0/total
 
 def main():
