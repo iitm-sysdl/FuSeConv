@@ -78,13 +78,7 @@ def test(net, testloader, criterion, epoch):
     return correct*1.0/total
 
 def main():
-    wandb.init(name=args.name, project="cifar-results")
-    # config = wandb.config
-    # config.batch_size = 128
-    # config.epochs = 100
-    # config.lr = 0.1
-    # config.momentum = 0.9           
-    
+    wandb.init(name=args.name, project="cifar-224")
     transform_train = transforms.Compose([
                         transforms.Resize(224),
                         transforms.RandomCrop(224, padding=4),
