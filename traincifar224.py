@@ -170,7 +170,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description = "Train CIFAR Models")
     parser.add_argument("--Dataset", "-D", type = str, help = 'CIFAR10, CIFAR100', required=True)
-    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, MobileNet, EfficientNet, SqueezeNet', required=True)
+    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, MobileNet, MobileNetV3S, MobileNetV3L', required=True)
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
