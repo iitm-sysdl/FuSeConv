@@ -78,10 +78,10 @@ def test(net, testloader, criterion, epoch):
     return correct*1.0/total
 
 def main(trial):
-    random.seed(trial)
-    torch.manual_seed(trial)
+    random.seed(trial*10+5)
+    torch.manual_seed(trial*20+5)
     runName = args.name + '_TrialNo:' + str(trial)
-    wandb.init(name=runName, project="cifar-results")
+    wandb.init(name=runName, project="cifar-results", reinit=True)
     # config = wandb.config
     # config.batch_size = 128
     # config.epochs = 100
@@ -146,9 +146,9 @@ def main(trial):
         optimizer.load_state_dict(checkpoint['optimizer'])
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                    milestones=[20, 40, 60, 80, 120, 140], gamma=0.1, last_epoch=startEpoch-1)
+                    milestones=[20, 40, 60, 80, 90], gamma=0.1, last_epoch=startEpoch-1)
     
-    for epoch in range(startEpoch, 150):
+    for epoch in range(startEpoch, 100):
         train(net, trainloader, criterion, optimizer, epoch)
         lr_scheduler.step()
         acc = test(net, testloader, criterion, epoch)
@@ -168,6 +168,7 @@ def main(trial):
     s = 'baseline' if args.baseline==True else 'friendly' 
     meta.write(args.Dataset + ' , ' + args.Network + ' , ' + s + ' , ' + str(bestAcc) + '\n')    
     meta.close()
+    wandb.join()
 
 if __name__ == '__main__':
     torch.backends.cudnn.deterministic = True
