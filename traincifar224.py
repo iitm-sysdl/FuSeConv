@@ -107,6 +107,12 @@ def main():
     if args.baseline == True:
         if args.Network == 'ResNet':
             net = ResNet50(numClasses)
+        elif args.Network == 'VGG':
+            net = VGG(numClasses)
+        elif args.Network == 'SqueezeNet':
+            net = SqueezeNet(numClasses)
+        elif args.Network == 'MobileNetV1':
+            net = MobileNetV1(numClasses)
         elif args.Network == 'MobileNetV2':
             net = MobileNetV2(numClasses)
         elif args.Network == 'MobileNetV3S':
@@ -116,7 +122,13 @@ def main():
     else:
         if args.Network == 'ResNet':
             net = ResNet50Friendly(numClasses)
-        elif args.Network == 'MobileNet':
+        elif args.Network == 'VGG':
+            net = VGGFriendly(numClasses)
+        elif args.Network == 'SqueezeNet':
+            net = SqueezeNetFriendly(numClasses)
+        elif args.Network == 'MobileNetV1':
+            net = MobileNetV1Friendly(numClasses)
+        elif args.Network == 'MobileNetV2':
             net = MobileNetV2Friendly(numClasses)
         elif args.Network == 'MobileNetV3S':
             net = MobileNetV3Friendly('small', numClasses)
@@ -170,7 +182,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description = "Train CIFAR Models")
     parser.add_argument("--Dataset", "-D", type = str, help = 'CIFAR10, CIFAR100', required=True)
-    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, MobileNet, MobileNetV3S, MobileNetV3L', required=True)
+    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, VGG, SqueezeNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L', required=True)
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
