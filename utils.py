@@ -756,7 +756,7 @@ def gen_read_trace(
 
     util_perc = (util / local_cycle) * 100
 
-    return (local_cycle + cycle), util_perc
+    return (local_cycle + cycle, util_perc)
 # End of gen_read_trace()
 
 
@@ -868,10 +868,45 @@ def gen_write_trace(
     return(local_cycle + cycle)
 # End of gen_write_trace()
 
+def gemmCycles(dimension_rows, dimension_cols, ifmap_h, ifmap_w, filt_h, filt_w,
+            num_channels, strides, num_filt):
+        H = ifmap_h
+        W = ifmap_w
+        C = num_channels
+        M = num_filt
+        R = filt_h
+        S = filt_w
+        Stride = strides
+        arrX = dimension_rows
+        arrY = dimension_cols
+
+        E = (H - R + Stride)/Stride
+        F = (W - S + Stride)/Stride
+    
+        ## Reduce to Mat mul of A x B and  B X C
+        numInput = E * F
+        numTime  = R * S * C
+        numFilter= M
+
+        cycles = 0
+        cycles = (numInput//arrX) * (numFilter//arrY) * (numTime + arrX + arrY - 1)
+
+        if numInput % arrX > 0:
+            cycles = cycles + (numFilter//arrY) * (numTime + (numInput % arrX) + arrY - 1)
+        if numFilter % arrY > 0:
+            cycles = cycles + (numInput//arrX) * (numTime + arrX + (numFilter % arrY) - 1)
+        if numInput % arrX > 0 and numFilter % arrY > 0:
+            cycles = cycles + (numInput//arrX) * (numTime + (numInput % arrX) + (numFilter % arrY) - 1)
+        return cycles
+
 class ForwardHook:
-    def __init__(self, arraySize):
+    def __init__(self, arraySize, mode):
         self.time = 0
         self.arraySize = arraySize
+        if mode == 'analytical':
+            self.latencyFn = gemmCycles
+        else:
+            self.latencyFn = sram_traffic
     def __call__(self, module, module_in, module_out):
         inT = module_in[0]
         inDim_h, inDim_w = (inT.shape[2], inT.shape[3])
@@ -884,11 +919,11 @@ class ForwardHook:
         inDim_h = inDim_h + 2*p_h
         inDim_w = inDim_w + 2*p_w
         if g == 1:
-            t,u = sram_traffic(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+            t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
                             ifmap_h=inDim_h, ifmap_w=inDim_w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=inC,strides=s_h, num_filt=outC)
-            print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t, u)
+            print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
             t = int(t)
         else:
             if k_h == 1:
@@ -908,7 +943,7 @@ class ForwardHook:
                 time = math.ceil(time)
                 t = time
             else:
-                t,u = sram_traffic(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+                t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
                             ifmap_h=inDim_h, ifmap_w=inDim_w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=1,strides=s_h, num_filt=1)
@@ -926,8 +961,8 @@ def getModelProp(model, x):
     flops, parameter = get_model_complexity_info(model, (x.shape[2], x.shape[3]), print_per_layer_stat=False, as_strings=False)
     return flops, parameter
 
-def getModelLatency(model, x, arraySize=8):    
-    hookfn = ForwardHook(arraySize)
+def getModelLatency(model, x, mode='analytical', arraySize=8):    
+    hookfn = ForwardHook(arraySize, mode)
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d):
             layer.register_forward_hook(hookfn)
