@@ -102,6 +102,9 @@ class Bottleneck(nn.Module):
 
         return out
 
+'''
+Variant 1: Depthwise on each C/2 channels of input, Pointwise on C channels 
+'''
 class BottleneckFriendly(nn.Module):
     expansion = 4
 
@@ -149,9 +152,175 @@ class BottleneckFriendly(nn.Module):
 
         return out
 
+'''
+Variant 2: Depthwise on each C channels of input, Pointwise on 2*C channels 
+'''
+class BottleneckFriendly2(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(BottleneckFriendly2, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        width = int(planes * (base_width / 64.)) * groups
+        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
+        self.conv1 = conv1x1(inplanes, width)
+        self.bn1 = norm_layer(width)
+        
+        self.conv2_h = nn.Conv2d(width, width, kernel_size=(1,3), stride=stride, padding=(0,1), bias=False, groups=width)
+        self.bn2_h = norm_layer(width)
+        self.conv2_v = nn.Conv2d(width, width, kernel_size=(3,1), stride=stride, padding=(1,0), bias=False, groups=width)
+        self.bn2_v = norm_layer(width)
+
+        self.conv3 = conv1x1(2*width, planes * self.expansion)
+        self.bn3 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=False)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out1 = self.relu(self.bn2_h(self.conv2_h(out))) 
+        out2 = self.relu(self.bn2_v(self.conv2_v(out)))
+        out = torch.cat([out1, out2], 1)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+'''
+Variant 3: Depthwise on each C/2 channels of input with more Filters, Pointwise on 2*C channels 
+'''
+class BottleneckFriendly3(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(BottleneckFriendly3, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        width = int(planes * (base_width / 64.)) * groups
+        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
+        self.conv1 = conv1x1(inplanes, width)
+        self.bn1 = norm_layer(width)
+        
+        self.conv2_h = nn.Conv2d(width//2, width//2, kernel_size=(1,3), stride=stride, padding=(0,1), bias=False, groups=width//2)
+        self.bn2_h = norm_layer(width//2)
+        self.conv2_hh = nn.Conv2d(width//2, width//2, kernel_size=(1,3), stride=stride, padding=(0,1), bias=False, groups=width//2)
+        self.bn2_hh = norm_layer(width//2)
+        
+        self.conv2_v = nn.Conv2d(width//2, width//2, kernel_size=(3,1), stride=stride, padding=(1,0), bias=False, groups=width//2)
+        self.bn2_v = norm_layer(width//2)
+        self.conv2_vv = nn.Conv2d(width//2, width//2, kernel_size=(3,1), stride=stride, padding=(1,0), bias=False, groups=width//2)
+        self.bn2_vv = norm_layer(width//2)
+
+        self.conv3 = conv1x1(2*width, planes * self.expansion)
+        self.bn3 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=False)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out1, out2 = out.chunk(2,1)
+        out11 = self.relu(self.bn2_h(self.conv2_h(out1)))
+        out12 =  self.relu(self.bn2_hh(self.conv2_hh(out1)))
+
+        out21 = self.relu(self.bn2_v(self.conv2_v(out2)))
+        out22 = self.relu(self.bn2_vv(self.conv2_vv(out2)))
+
+        out = torch.cat([out11, out12, out21, out22], 1)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+'''
+Variant 4: Depthwise on each C channels of input with more fiters, Pointwise on 2*C channels 
+'''
+class BottleneckFriendly4(nn.Module):
+    expansion = 4
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(BottleneckFriendly4, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        width = int(planes * (base_width / 64.)) * groups
+        # Both self.conv2 and self.downsample layers downsample the input when stride != 1
+        self.conv1 = conv1x1(inplanes, width)
+        self.bn1 = norm_layer(width)
+        
+        self.conv2_h = nn.Conv2d(width, width, kernel_size=(1,3), stride=stride, padding=(0,1), bias=False, groups=width)
+        self.bn2_h = norm_layer(width)
+        self.conv2_hh = nn.Conv2d(width, width, kernel_size=(1,3), stride=stride, padding=(0,1), bias=False, groups=width)
+        self.bn2_hh = norm_layer(width)
+        
+        self.conv2_v = nn.Conv2d(width, width, kernel_size=(3,1), stride=stride, padding=(1,0), bias=False, groups=width)
+        self.bn2_v = norm_layer(width)
+        self.conv2_vv = nn.Conv2d(width, width, kernel_size=(3,1), stride=stride, padding=(1,0), bias=False, groups=width)
+        self.bn2_vv = norm_layer(width)
+
+        self.conv3 = conv1x1(4*width, planes * self.expansion)
+        self.bn3 = norm_layer(planes * self.expansion)
+        self.relu = nn.ReLU(inplace=False)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out11 = self.relu(self.bn2_h(self.conv2_h(out)))
+        out12 = self.relu(self.bn2_hh(self.conv2_hh(out))) 
+
+        out21 = self.relu(self.bn2_v(self.conv2_v(out)))
+        out22 = self.relu(self.bn2_vv(self.conv2_vv(out)))
+
+        out = torch.cat([out11, out12, out21, out22], 1)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=1000, zero_init_residual=False,
+    def __init__(self, block, layers, num_classes=1000, zero_init_residual=True,
                  groups=1, width_per_group=64, replace_stride_with_dilation=None,
                  norm_layer=None):
         super(ResNet, self).__init__()
@@ -184,7 +353,7 @@ class ResNet(nn.Module):
                                        dilate=replace_stride_with_dilation[2])
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
-
+        # self.dropout = nn.Dropout(p=0.5)
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -201,6 +370,8 @@ class ResNet(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
+                elif isinstance(m, nn.Linear): 
+                    m.weight.data.normal_(0, 0.01)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -239,21 +410,38 @@ class ResNet(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
+        # x = self.dropout(x)
         x = self.fc(x)
-
         return x
 
 
-def ResNet50(num_classes=100):
+def ResNet50(num_classes=1000):
     return ResNet(Bottleneck, [3,4,6,3], num_classes)
 
-def ResNet50Friendly(num_classes=100):
+def ResNet50Friendly(num_classes=1000):
     return ResNet(BottleneckFriendly, [3,4,6,3], num_classes)
+
+def ResNet50Friendly2(num_classes=1000):
+    return ResNet(BottleneckFriendly2, [3,4,6,3], num_classes)
+
+def ResNet50Friendly3(num_classes=1000):
+    return ResNet(BottleneckFriendly3, [3,4,6,3], num_classes)
+
+def ResNet50Friendly4(num_classes=1000):
+    return ResNet(BottleneckFriendly4, [3,4,6,3], num_classes)
+
+
 
 def test():
     net = ResNet50()
     y = net(torch.randn(1,3,224,224))
     net = ResNet50Friendly()
+    y = net(torch.randn(1,3,128,128))
+    net = ResNet50Friendly2()
+    y = net(torch.randn(1,3,224,224))
+    net = ResNet50Friendly3()
+    y = net(torch.randn(1,3,288,288))
+    net = ResNet50Friendly4()
     y = net(torch.randn(1,3,224,224))
     print(y.size())
 

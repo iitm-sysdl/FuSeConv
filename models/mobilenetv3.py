@@ -174,7 +174,7 @@ class MobileBottleneckFriendly(nn.Module):
     
 		        
 class MobileNetV3Class(nn.Module):
-    def __init__(self, block, n_class, mode, dropout=0.8, width_mult=1.0):
+    def __init__(self, block, n_class, mode, dropout=0.20, width_mult=1.0):
         super(MobileNetV3Class, self).__init__()
         input_channel = 16
         last_channel = 1280
