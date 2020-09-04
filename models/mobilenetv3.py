@@ -131,7 +131,7 @@ class InvertedResidualFriendly(nn.Module):
         self.identity = stride == 1 and inp == oup
         self.inp = inp
         self.hidden_dim = hidden_dim
-        padding = (kernel - 1) // 2
+        padding = (kernel_size - 1) // 2
 
         if use_se:
             excite = SELayer
@@ -149,9 +149,9 @@ class InvertedResidualFriendly(nn.Module):
         self.act1  = activationFn(inplace=True)
 
         # self.conv2 = nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False)
-        self.conv2_h = nn.Conv2d(hidden_dim//2, hidden_dim//2, (1, kernel_size), stride, (0, padding), groups==hidden_dim//2, bias=False)
+        self.conv2_h = nn.Conv2d(hidden_dim//2, hidden_dim//2, (1, kernel_size), stride, (0, padding), groups=hidden_dim//2, bias=False)
         self.bn2_h   = nn.BatchNorm2d(hidden_dim//2)
-        self.conv2_v = nn.Conv2d(hidden_dim//2, hidden_dim//2, (kernel_size, 1), stride, (padding, 0), groups==hidden_dim//2, bias=False)
+        self.conv2_v = nn.Conv2d(hidden_dim//2, hidden_dim//2, (kernel_size, 1), stride, (padding, 0), groups=hidden_dim//2, bias=False)
         self.bn2_v   = nn.BatchNorm2d(hidden_dim//2)
         
         self.se    = excite(hidden_dim)
@@ -159,35 +159,6 @@ class InvertedResidualFriendly(nn.Module):
 
         self.conv3 = nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)
         self.bn3   = nn.BatchNorm2d(oup)
-
-        if inp == hidden_dim:
-            self.conv = nn.Sequential(
-                # dw
-                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
-                nn.BatchNorm2d(hidden_dim),
-                h_swish() if use_hs else nn.ReLU(inplace=True),
-                # Squeeze-and-Excite
-                SELayer(hidden_dim) if use_se else nn.Identity(),
-                # pw-linear
-                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(oup),
-            )
-        else:
-            self.conv = nn.Sequential(
-                # pw
-                nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(hidden_dim),
-                h_swish() if use_hs else nn.ReLU(inplace=True),
-                # dw
-                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
-                nn.BatchNorm2d(hidden_dim),
-                # Squeeze-and-Excite
-                SELayer(hidden_dim) if use_se else nn.Identity(),
-                h_swish() if use_hs else nn.ReLU(inplace=True),
-                # pw-linear
-                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(oup),
-            )
 
     def forward(self, x):
 
@@ -231,7 +202,7 @@ class MobileNetV3Class(nn.Module):
         input_channel = _make_divisible(16 * width_mult, 8)
         layers = [conv_3x3_bn(3, input_channel, 2)]
         # building inverted residual blocks
-        block = InvertedResidual
+        # block = InvertedResidual
         for k, t, c, use_se, use_hs, s in self.cfgs:
             output_channel = _make_divisible(c * width_mult, 8)
             exp_size = _make_divisible(input_channel * t, 8)
