@@ -1,296 +1,334 @@
+"""
+Creates a MobileNetV3 Model as defined in:
+Andrew Howard, Mark Sandler, Grace Chu, Liang-Chieh Chen, Bo Chen, Mingxing Tan, Weijun Wang, Yukun Zhu, Ruoming Pang, Vijay Vasudevan, Quoc V. Le, Hartwig Adam. (2019).
+Searching for MobileNetV3
+arXiv preprint arXiv:1905.02244.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
+
+def _make_divisible(v, divisor, min_value=None):
+    """
+    This function is taken from the original tf repo.
+    It ensures that all layers have a channel number that is divisible by 8
+    It can be seen here:
+    https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet/mobilenet.py
+    :param v:
+    :param divisor:
+    :param min_value:
+    :return:
+    """
+    if min_value is None:
+        min_value = divisor
+    new_v = max(min_value, int(v + divisor / 2) // divisor * divisor)
+    # Make sure that round down does not go down by more than 10%.
+    if new_v < 0.9 * v:
+        new_v += divisor
+    return new_v
 
 
-def conv_bn(inp, oup, stride, conv_layer=nn.Conv2d, norm_layer=nn.BatchNorm2d, nlin_layer=nn.ReLU):
-    return nn.Sequential(
-        conv_layer(inp, oup, 3, stride, 1, bias=False),
-        norm_layer(oup),
-        nlin_layer(inplace=True)
-    )
-
-
-def conv_1x1_bn(inp, oup, conv_layer=nn.Conv2d, norm_layer=nn.BatchNorm2d, nlin_layer=nn.ReLU):
-    return nn.Sequential(
-        conv_layer(inp, oup, 1, 1, 0, bias=False),
-        norm_layer(oup),
-        nlin_layer(inplace=True)
-    )
-
-class Flatten(nn.Module):
-  def forward(self, x):
-    N, C, H, W = x.size() # read in N, C, H, W
-    return x.view(N, -1)
-
-class Hswish(nn.Module):
+class h_sigmoid(nn.Module):
     def __init__(self, inplace=True):
-        super(Hswish, self).__init__()
-        self.inplace = inplace
+        super(h_sigmoid, self).__init__()
+        self.relu = nn.ReLU6(inplace=inplace)
 
     def forward(self, x):
-        return x * F.relu6(x + 3., inplace=self.inplace) / 6.
+        return self.relu(x + 3) / 6
 
 
-class Hsigmoid(nn.Module):
+class h_swish(nn.Module):
     def __init__(self, inplace=True):
-        super(Hsigmoid, self).__init__()
-        self.inplace = inplace
+        super(h_swish, self).__init__()
+        self.sigmoid = h_sigmoid(inplace=inplace)
 
     def forward(self, x):
-        return F.relu6(x + 3., inplace=self.inplace) / 6.
+        return x * self.sigmoid(x)
 
 
-class SEModule(nn.Module):
+class SELayer(nn.Module):
     def __init__(self, channel, reduction=4):
-        super(SEModule, self).__init__()
+        super(SELayer, self).__init__()
         self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.fc = nn.Sequential(
-            nn.Linear(channel, channel // reduction, bias=False),
-            nn.ReLU(inplace=True),
-            nn.Linear(channel // reduction, channel, bias=False),
-            Hsigmoid()
-            # nn.Sigmoid()
+                nn.Linear(channel, _make_divisible(channel // reduction, 8)),
+                nn.ReLU(inplace=True),
+                nn.Linear(_make_divisible(channel // reduction, 8), channel),
+                h_sigmoid()
         )
 
     def forward(self, x):
         b, c, _, _ = x.size()
         y = self.avg_pool(x).view(b, c)
         y = self.fc(y).view(b, c, 1, 1)
-        return x * y.expand_as(x)
+        return x * y
 
 
-class Identity(nn.Module):
-    def __init__(self, channel):
-        super(Identity, self).__init__()
-
-    def forward(self, x):
-        return x
-
-
-def make_divisible(x, divisible_by=8):
-    import numpy as np
-    return int(np.ceil(x * 1. / divisible_by) * divisible_by)
+def conv_3x3_bn(inp, oup, stride):
+    return nn.Sequential(
+        nn.Conv2d(inp, oup, 3, stride, 1, bias=False),
+        nn.BatchNorm2d(oup),
+        h_swish()
+    )
 
 
-class MobileBottleneck(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
-        super(MobileBottleneck, self).__init__()
+def conv_1x1_bn(inp, oup):
+    return nn.Sequential(
+        nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
+        nn.BatchNorm2d(oup),
+        h_swish()
+    )
+
+
+class InvertedResidual(nn.Module):
+    def __init__(self, inp, hidden_dim, oup, kernel_size, stride, use_se, use_hs):
+        super(InvertedResidual, self).__init__()
         assert stride in [1, 2]
-        assert kernel in [3, 5]
-        padding = (kernel - 1) // 2
-        self.use_res_connect = stride == 1 and inp == oup
-        
-        conv_layer = nn.Conv2d
-        norm_layer = nn.BatchNorm2d
-        
-        if nl == 'RE':
-            nlin_layer = nn.ReLU # or ReLU6
-        elif nl == 'HS':
-            nlin_layer = Hswish
-        else:
-            raise NotImplementedError
-        if se:
-            SELayer = SEModule
-        else:
-            SELayer = Identity
 
-        self.conv = nn.Sequential(
-            # pw
-            conv_layer(inp, exp, 1, 1, 0, bias=False),
-            norm_layer(exp),
-            nlin_layer(inplace=True),
-            # dw
-            conv_layer(exp, exp, kernel, stride, padding, groups=exp, bias=False),
-            norm_layer(exp),
-            SELayer(exp),
-            nlin_layer(inplace=True),
-            # pw-linear
-            conv_layer(exp, oup, 1, 1, 0, bias=False),
-            norm_layer(oup),
-        )
+        self.identity = stride == 1 and inp == oup
+
+        if inp == hidden_dim:
+            self.conv = nn.Sequential(
+                # dw
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # Squeeze-and-Excite
+                SELayer(hidden_dim) if use_se else nn.Identity(),
+                # pw-linear
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
+            )
+        else:
+            self.conv = nn.Sequential(
+                # pw
+                nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # dw
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                # Squeeze-and-Excite
+                SELayer(hidden_dim) if use_se else nn.Identity(),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # pw-linear
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
+            )
 
     def forward(self, x):
-        if self.use_res_connect:
+        if self.identity:
             return x + self.conv(x)
         else:
             return self.conv(x)
 
-class MobileBottleneckFriendly(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
-        super(MobileBottleneckFriendly, self).__init__()
+class InvertedResidualFriendly(nn.Module):
+    def __init__(self, inp, hidden_dim, oup, kernel_size, stride, use_se, use_hs):
+        super(InvertedResidualFriendly, self).__init__()
         assert stride in [1, 2]
-        assert kernel in [3, 5]
-        padding = (kernel - 1) // 2
-        self.use_res_connect = stride == 1 and inp == oup
-        
-        if nl == 'RE':
-            nlin_layer = nn.ReLU # or ReLU6
-        elif nl == 'HS':
-            nlin_layer = Hswish
-        else:
-            raise NotImplementedError
-        if se:
-            SELayer = SEModule
-        else:
-            SELayer = Identity
 
-        conv_layer = nn.Conv2d
-        norm_layer = nn.BatchNorm2d
+        self.identity = stride == 1 and inp == oup
+        self.inp = inp
+        self.hidden_dim = hidden_dim
+        padding = (kernel - 1) // 2
+
+        if use_se:
+            excite = SELayer
+        else:
+            excite = nn.Identity
         
-        self.conv1 = conv_layer(inp, exp, 1, 1, 0, bias=False)
-        self.bn1 = norm_layer(exp)
-        self.nl1 = nlin_layer(inplace=True)
-		
-        self.conv2_h = conv_layer(exp//2, exp//2, kernel_size=(1, kernel),stride=stride, padding=(0, padding), groups=exp//2, bias=False)
-        self.bn2_h = norm_layer(exp//2)
-        self.conv2_v = conv_layer(exp//2, exp//2, kernel_size=(kernel, 1),stride=stride, padding=(padding, 0), groups=exp//2, bias=False)
-        self.bn2_v = norm_layer(exp//2)
-        self.se1 = SELayer(exp)
-        self.nl2 = nlin_layer(inplace=True)
+        if use_hs:
+            activationFn = h_swish
+        else:
+            activationFn = nn.ReLU
+
+             
+        self.conv1 = nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False)
+        self.bn1   = nn.BatchNorm2d(hidden_dim)
+        self.act1  = activationFn(inplace=True)
+
+        # self.conv2 = nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False)
+        self.conv2_h = nn.Conv2d(hidden_dim//2, hidden_dim//2, (1, kernel_size), stride, (0, padding), groups==hidden_dim//2, bias=False)
+        self.bn2_h   = nn.BatchNorm2d(hidden_dim//2)
+        self.conv2_v = nn.Conv2d(hidden_dim//2, hidden_dim//2, (kernel_size, 1), stride, (padding, 0), groups==hidden_dim//2, bias=False)
+        self.bn2_v   = nn.BatchNorm2d(hidden_dim//2)
         
-        self.conv3 = conv_layer(exp, oup, 1, 1, 0, bias=False)
-        self.bn3 = norm_layer(oup)
-	 
+        self.se    = excite(hidden_dim)
+        self.act2  = activationFn(inplace=True)
+
+        self.conv3 = nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)
+        self.bn3   = nn.BatchNorm2d(oup)
+
+        if inp == hidden_dim:
+            self.conv = nn.Sequential(
+                # dw
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # Squeeze-and-Excite
+                SELayer(hidden_dim) if use_se else nn.Identity(),
+                # pw-linear
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
+            )
+        else:
+            self.conv = nn.Sequential(
+                # pw
+                nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # dw
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size, stride, (kernel_size - 1) // 2, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                # Squeeze-and-Excite
+                SELayer(hidden_dim) if use_se else nn.Identity(),
+                h_swish() if use_hs else nn.ReLU(inplace=True),
+                # pw-linear
+                nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+                nn.BatchNorm2d(oup),
+            )
+
     def forward(self, x):
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.nl1(out)
+
+        if self.inp != self.hidden_dim:
+            out = self.act1(self.bn1(self.conv1(x)))
+            
+            out1, out2 = out.chunk(2,1)
+            out1 = self.bn2_h(self.conv2_h(out1))
+            out2 = self.bn2_v(self.conv2_v(out2))
+            out = torch.cat([out1, out2], 1)
+            out = self.se(out)
+            out = self.act2(out)
         
-        out1, out2 = out.chunk(2,1)
-        out1 = self.bn2_h(self.conv2_h(out1))
-        out2 = self.bn2_v(self.conv2_v(out2))
-        out = torch.cat([out1, out2], 1)
-        out = self.se1(out)
-        out = self.nl2(out)
-        
+        else:
+            out = x
+            out1, out2 = out.chunk(2,1)
+            out1 = self.bn2_h(self.conv2_h(out1))
+            out2 = self.bn2_v(self.conv2_v(out2))
+            out = torch.cat([out1, out2], 1)
+            out = self.act2(out)
+            out = self.se(out)
+            
         out = self.conv3(out)
         out = self.bn3(out)
         
-        if self.use_res_connect:
+
+        if self.identity:
             return x + out
         else:
             return out
-    
-		        
+
+
 class MobileNetV3Class(nn.Module):
-    def __init__(self, block, n_class, mode, dropout=0.20, width_mult=1.0):
+    def __init__(self, cfgs, block, mode, num_classes=1000, width_mult=1.):
         super(MobileNetV3Class, self).__init__()
-        input_channel = 16
-        last_channel = 1280
-        if mode == 'large':
-            # refer to Table 1 in paper
-            mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  False, 'RE', 1],
-                [3, 64,  24,  False, 'RE', 2],
-                [3, 72,  24,  False, 'RE', 1],
-                [5, 72,  40,  True,  'RE', 2],
-                [5, 120, 40,  True,  'RE', 1],
-                [5, 120, 40,  True,  'RE', 1],
-                [3, 240, 80,  False, 'HS', 2],
-                [3, 200, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 480, 112, True,  'HS', 1],
-                [3, 672, 112, True,  'HS', 1],
-                [5, 672, 160, True,  'HS', 2],
-                [5, 960, 160, True,  'HS', 1],
-                [5, 960, 160, True,  'HS', 1],
-            ]
-        elif mode == 'small':
-            # refer to Table 2 in paper
-            mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  True,  'RE', 2],
-                [3, 72,  24,  False, 'RE', 2],
-                [3, 88,  24,  False, 'RE', 1],
-                [5, 96,  40,  True,  'HS', 2],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 120, 48,  True,  'HS', 1],
-                [5, 144, 48,  True,  'HS', 1],
-                [5, 288, 96,  True,  'HS', 2],
-                [5, 576, 96,  True,  'HS', 1],
-                [5, 576, 96,  True,  'HS', 1],
-            ]
-        else:
-            raise NotImplementedError
+        # setting of inverted residual blocks
+        self.cfgs = cfgs
+        assert mode in ['large', 'small']
 
         # building first layer
-        last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else last_channel
-        self.features = [conv_bn(3, input_channel, 2, nlin_layer=Hswish)]
-        self.classifier = []
-
-        # building mobile blocks
-        for k, exp, c, se, nl, s in mobile_setting:
-            output_channel = make_divisible(c * width_mult)
-            exp_channel = make_divisible(exp * width_mult)
-            self.features.append(block(input_channel, output_channel, k, s, exp_channel, se, nl))
+        input_channel = _make_divisible(16 * width_mult, 8)
+        layers = [conv_3x3_bn(3, input_channel, 2)]
+        # building inverted residual blocks
+        block = InvertedResidual
+        for k, t, c, use_se, use_hs, s in self.cfgs:
+            output_channel = _make_divisible(c * width_mult, 8)
+            exp_size = _make_divisible(input_channel * t, 8)
+            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
             input_channel = output_channel
-
+        self.features = nn.Sequential(*layers)
         # building last several layers
-        if mode == 'large':
-            last_conv = make_divisible(960 * width_mult)
-            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
-            self.features.append(nn.AdaptiveAvgPool2d(1))
-            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
-            self.features.append(Hswish(inplace=True))
-        elif mode == 'small':
-            last_conv = make_divisible(576 * width_mult)
-            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
-            # self.features.append(SEModule(last_conv))  # refer to paper Table2, but I think this is a mistake
-            self.features.append(nn.AdaptiveAvgPool2d(1))
-            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
-            self.features.append(Hswish(inplace=True))
-        else:
-            raise NotImplementedError
-
-        # make it nn.Sequential
-        self.features = nn.Sequential(*self.features)
-
-        # building classifier
+        self.conv = conv_1x1_bn(input_channel, exp_size)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        output_channel = {'large': 1280, 'small': 1024}
+        output_channel = _make_divisible(output_channel[mode] * width_mult, 8) if width_mult > 1.0 else output_channel[mode]
         self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout),    # refer to paper section 6
-            nn.Linear(last_channel, n_class),
+            nn.Linear(exp_size, output_channel),
+            h_swish(),
+            nn.Dropout(0.2),
+            nn.Linear(output_channel, num_classes),
         )
 
         self._initialize_weights()
 
     def forward(self, x):
         x = self.features(x)
-        x = x.mean(3).mean(2)
+        x = self.conv(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
         x = self.classifier(x)
         return x
 
     def _initialize_weights(self):
-        # weight initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
                 if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+                    m.bias.data.zero_()
             elif isinstance(m, nn.BatchNorm2d):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
             elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
+                n = m.weight.size(1)
+                m.weight.data.normal_(0, 0.01)
+                m.bias.data.zero_()
+
+large = [
+        # k, t, c, SE, HS, s 
+        [3,   1,  16, 0, 0, 1],
+        [3,   4,  24, 0, 0, 2],
+        [3,   3,  24, 0, 0, 1],
+        [5,   3,  40, 1, 0, 2],
+        [5,   3,  40, 1, 0, 1],
+        [5,   3,  40, 1, 0, 1],
+        [3,   6,  80, 0, 1, 2],
+        [3, 2.5,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3, 2.3,  80, 0, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [3,   6, 112, 1, 1, 1],
+        [5,   6, 160, 1, 1, 2],
+        [5,   6, 160, 1, 1, 1],
+        [5,   6, 160, 1, 1, 1]
+    ]
+
+small = [
+        # k, t, c, SE, HS, s 
+        [3,    1,  16, 1, 0, 2],
+        [3,  4.5,  24, 0, 0, 2],
+        [3, 3.67,  24, 0, 0, 1],
+        [5,    4,  40, 1, 1, 2],
+        [5,    6,  40, 1, 1, 1],
+        [5,    6,  40, 1, 1, 1],
+        [5,    3,  48, 1, 1, 1],
+        [5,    3,  48, 1, 1, 1],
+        [5,    6,  96, 1, 1, 2],
+        [5,    6,  96, 1, 1, 1],
+        [5,    6,  96, 1, 1, 1],
+    ]
 
 
 def MobileNetV3(mode='small', num_classes=100):
-    return MobileNetV3Class(MobileBottleneck, num_classes, mode)
+    if mode =='small':
+        return MobileNetV3Class(small, InvertedResidual, mode, num_classes)
+    else:
+        return MobileNetV3Class(large, InvertedResidual, mode, num_classes)
+
 
 def MobileNetV3Friendly(mode='small', num_classes=100):
-    return MobileNetV3Class(MobileBottleneckFriendly, num_classes, mode)
+    if mode == 'small':
+        return MobileNetV3Class(small, InvertedResidualFriendly, mode, num_classes)
+    else:
+        return MobileNetV3Class(large, InvertedResidualFriendly, mode, num_classes)
 
 def test():
-    net = MobileNetV3()
+    net = MobileNetV3('large', 1000)
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
-    net = MobileNetV3Friendly()
+    net = MobileNetV3Friendly('small', 1000)
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
