@@ -163,13 +163,13 @@ def main():
     if args.network == 'resnet50':
         model.resnet.resnet50(bn0=args.init_bn0).cuda()
     elif args.network == 'resnet50friendlyv1':
-        model = resnet.resnet50friendly(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv2':
-        model = resnet.resnet50friendly2(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly2(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv3':
-        model = resnet.resnet50friendly3(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly3(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv4':
-        model = resnet.resnet50friendly4(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly4(bn0=args.init_bn0, hybrid = True).cuda()
     #import resnet_friendly
     #model = resnet_friendly.ResNet50Friendly().cuda()
     #model = torchvision.models.mobilenet_v2(pretrained=False).cuda()
