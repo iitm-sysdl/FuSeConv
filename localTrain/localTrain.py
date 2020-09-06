@@ -206,7 +206,7 @@ def main():
 
     log.console("Creating data loaders (this could take up to 10 minutes if volume needs to be warmed up)")
     # phases = util.text_unpickle(args.phases)
-    lr = 0.75
+    lr = 0.9
     scale_224 = 224 / 512
     scale_288 = 128 / 512
     one_machine = [
@@ -220,7 +220,7 @@ def main():
         {'ep': (38, 40), 'lr': lr / 1000 * scale_288},
         #{'ep': (36, 40), 'lr': lr / 1000 * scale_288},
         {'ep': (41, 43), 'lr': lr / 10000 * scale_288},
-        {'ep': (43, 45), 'sz': 288, 'bs' : 224, 'lr': lr / 10000 * scale_224}
+        {'ep': (43, 45), 'sz': 288, 'bs' : 64, 'lr': lr / 10000 * scale_288}
         #{'ep': (46, 50), 'sz': 320, 'bs': 64,  'lr': lr / 10000 * scale_320}
     ]
     phases = util.text_pickle(one_machine) #Ok? Unpickle?
@@ -253,9 +253,9 @@ def main():
         if args.local_rank == 0:
             if is_best:
                 save_checkpoint(phase_save, epoch, model, best_top5, optimizer, is_best=True,
-                                    filename='model_best_'+args.network+'.pth.tar')
+                                    filename='model_best_'+args.network+args.name+'.pth.tar')
             else:
-                save_checkpoint(phase_save, epoch, model, top5, optimizer, is_best=False, filename='model_epoch_latest_'+args.network+'.pth.tar')
+                save_checkpoint(phase_save, epoch, model, top5, optimizer, is_best=False, filename='model_epoch_latest_'+args.network+args.name+'.pth.tar')
             phase = dm.get_phase(epoch)
             if phase:  save_checkpoint(phase_save, epoch, model, best_top5, optimizer,
                                        filename=f'sz{phase["bs"]}_checkpoint.path.tar')
