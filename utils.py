@@ -923,7 +923,7 @@ class ForwardHook:
                             ifmap_h=inDim_h, ifmap_w=inDim_w,
                             filt_h=k_h, filt_w=k_w,
                             num_channels=inC,strides=s_h, num_filt=outC)
-            print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
+            # print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
             t = int(t)
         else:
             if k_h == 1:
@@ -950,7 +950,7 @@ class ForwardHook:
                 t = int(t)
                 t = t*outC
             
-            print('Group > 1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
+            # print('Group > 1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
 
         self.time += t
     

@@ -171,7 +171,7 @@ class MobileBottleneckFriendly(nn.Module):
             return x + out
         else:
             return out
-    
+
 class MobileBottleneckFriendly2(nn.Module):
     def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
         super(MobileBottleneckFriendly2, self).__init__()
@@ -228,7 +228,7 @@ class MobileBottleneckFriendly2(nn.Module):
         else:
             return out
 
-
+		        
 class MobileNetV3Class(nn.Module):
     def __init__(self, block, n_class, mode, dropout=0.20, width_mult=1.0):
         super(MobileNetV3Class, self).__init__()
@@ -237,38 +237,38 @@ class MobileNetV3Class(nn.Module):
         if mode == 'large':
             # refer to Table 1 in paper
             mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  False, 'RE', 1],
-                [3, 64,  24,  False, 'RE', 2],
-                [3, 72,  24,  False, 'RE', 1],
-                [5, 72,  40,  True,  'RE', 2],
-                [5, 120, 40,  True,  'RE', 1],
-                [5, 120, 40,  True,  'RE', 1],
-                [3, 240, 80,  False, 'HS', 2],
-                [3, 200, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 480, 112, True,  'HS', 1],
-                [3, 672, 112, True,  'HS', 1],
-                [5, 672, 160, True,  'HS', 2],
-                [5, 960, 160, True,  'HS', 1],
-                [5, 960, 160, True,  'HS', 1],
+                # k, exp, c,  se,     nl,  s, fuse
+                [3, 16,  16,  False, 'RE', 1, 1],
+                [3, 64,  24,  False, 'RE', 2, 1],
+                [3, 72,  24,  False, 'RE', 1, 1],
+                [5, 72,  40,  True,  'RE', 2, 1],
+                [5, 120, 40,  True,  'RE', 1, 1],
+                [5, 120, 40,  True,  'RE', 1, 1],
+                [3, 240, 80,  False, 'HS', 2, 0],
+                [3, 200, 80,  False, 'HS', 1, 0],
+                [3, 184, 80,  False, 'HS', 1, 1],
+                [3, 184, 80,  False, 'HS', 1, 1],
+                [3, 480, 112, True,  'HS', 1, 0],
+                [3, 672, 112, True,  'HS', 1, 0],
+                [5, 672, 160, True,  'HS', 2, 0],
+                [5, 960, 160, True,  'HS', 1, 0],
+                [5, 960, 160, True,  'HS', 1, 0],
             ]
         elif mode == 'small':
             # refer to Table 2 in paper
             mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  True,  'RE', 2],
-                [3, 72,  24,  False, 'RE', 2],
-                [3, 88,  24,  False, 'RE', 1],
-                [5, 96,  40,  True,  'HS', 2],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 120, 48,  True,  'HS', 1],
-                [5, 144, 48,  True,  'HS', 1],
-                [5, 288, 96,  True,  'HS', 2],
-                [5, 576, 96,  True,  'HS', 1],
-                [5, 576, 96,  True,  'HS', 1],
+                # k, exp, c,  se,     nl,  s, fuse
+                [3, 16,  16,  True,  'RE', 2, 0],
+                [3, 72,  24,  False, 'RE', 2, 0],
+                [3, 88,  24,  False, 'RE', 1, 1],
+                [5, 96,  40,  True,  'HS', 2, 0],
+                [5, 240, 40,  True,  'HS', 1, 1],
+                [5, 240, 40,  True,  'HS', 1, 1],
+                [5, 120, 48,  True,  'HS', 1, 1],
+                [5, 144, 48,  True,  'HS', 1, 1],
+                [5, 288, 96,  True,  'HS', 2, 0],
+                [5, 576, 96,  True,  'HS', 1, 0],
+                [5, 576, 96,  True,  'HS', 1, 0],
             ]
         else:
             raise NotImplementedError
@@ -279,10 +279,14 @@ class MobileNetV3Class(nn.Module):
         self.classifier = []
 
         # building mobile blocks
-        for k, exp, c, se, nl, s in mobile_setting:
+        for k, exp, c, se, nl, s ,fuse in mobile_setting:
+            if fuse==0:
+                blockHybrid=MobileBottleneck
+            else:
+                blockHybrid=block
             output_channel = make_divisible(c * width_mult)
             exp_channel = make_divisible(exp * width_mult)
-            self.features.append(block(input_channel, output_channel, k, s, exp_channel, se, nl))
+            self.features.append(blockHybrid(input_channel, output_channel, k, s, exp_channel, se, nl))
             input_channel = output_channel
 
         # building last several layers
@@ -348,11 +352,14 @@ def test():
     net = MobileNetV3()
     x = torch.randn(1,3,224,224)
     y = net(x)
+    print(net)
     print(y.size())
     net = MobileNetV3Friendly()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
+    print(net)
 
 if __name__ == '__main__':
     test()
+	
