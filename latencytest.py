@@ -8,7 +8,8 @@ import resnetfusedHybrid as resnetgyhbrid
 import mobilenetv2fusedHybrid as mv2hybrid
 
 x = torch.randn([1,3,224,224])
-mode = 'scale-sim'
+mode = 'analytical'
+# model ='scale-sim'
 arraySize = 16
 start_time = time.time()
 ###########MobileNetV3##########
@@ -55,5 +56,17 @@ lath2 = getModelLatency(net, x, mode, arraySize)
 print(latb/latf, latb/latf2, latb/lath, latb/lath2)
 #####
 print("--- %s seconds ---" % (time.time() - start_time))
+print('MobileNet-V1')
+net = MobileNetV1(1000)
+latb = getModelLatency(net, x, mode, arraySize)
+net = MobileNetV1Friendly(1000)
+latf = getModelLatency(net, x, mode, arraySize)
+net = MobileNetV1Friendly2(1000)
+latf2 = getModelLatency(net, x, mode, arraySize)
+# net = mv2hybrid.MobileNetV2Friendly(1000)
+# lath = getModelLatency(net, x, mode, arraySize)
+# net = mv2hybrid.MobileNetV2Friendly2(1000)
+# lath2 = getModelLatency(net, x, mode, arraySize)
+print(latb/latf, latb/latf2)# latb/lath, latb/lath2)
 
 

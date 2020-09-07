@@ -41,6 +41,24 @@ class FriendlyBlock(nn.Module):
         out = F.relu(self.bn2(self.conv2(out)))
         return out
 
+class FriendlyBlock2(nn.Module):
+    '''Depthwise conv + Pointwise conv'''
+    def __init__(self, in_planes, out_planes, stride=1):
+        super(FriendlyBlock2, self).__init__()
+        self.conv1_h = nn.Conv2d(in_planes, in_planes, kernel_size=(1,3), stride=stride, padding=(0,1), groups=in_planes, bias=False)
+        self.bn1_h = nn.BatchNorm2d(in_planes)
+        self.conv1_v = nn.Conv2d(in_planes, in_planes, kernel_size=(3,1), stride=stride, padding=(1,0), groups=in_planes, bias=False)
+        self.bn1_v = nn.BatchNorm2d(in_planes)
+        self.conv2 = nn.Conv2d(2*in_planes, out_planes, kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_planes)
+
+    def forward(self, x):
+        out1 = self.bn1_h(self.conv1_h(x))
+        out2 = self.bn1_v(self.conv1_v(x))
+        out  = torch.cat([out1, out2], 1)
+        out = F.relu(self.bn2(self.conv2(out)))
+        return out
+
 class MobileNet(nn.Module):
     # (128,2) means conv planes=128, conv stride=2, by default conv stride=1
     depth_mul = 1
@@ -51,7 +69,7 @@ class MobileNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(block, in_planes=32)
-        self.dropout = nn.Dropout(p=0.5)
+        self.dropout = nn.Dropout(p=0.2)
         self.linear = nn.Linear(int(1024 * self.depth_mul), num_classes)
 
     def _make_layers(self, block, in_planes):
@@ -72,12 +90,14 @@ class MobileNet(nn.Module):
         out = self.linear(out)
         return out
 
-
-def MobileNetV1(num_classes=100):
+def MobileNetV1(num_classes=1000):
     return MobileNet(Block, num_classes)
 
-def MobileNetV1Friendly(num_classes=100):
+def MobileNetV1Friendly(num_classes=1000):
     return MobileNet(FriendlyBlock, num_classes)
+
+def MobileNetV1Friendly2(num_classes=1000):
+    return MobileNet(FriendlyBlock2, num_classes)
 
 def test():
     net = MobileNetV1()
