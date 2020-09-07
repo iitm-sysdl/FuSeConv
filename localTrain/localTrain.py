@@ -216,11 +216,12 @@ def main():
         {'ep': 14, 'sz': 224, 'bs': 224,'lr': lr * scale_224},
         {'ep': 16, 'lr': lr / 10 * scale_224},
         {'ep': 32, 'lr': lr / 100 * scale_224},
-        {'ep': 37, 'sz': 288, 'bs': 128, 'min_scale': 0.5, 'rect_val': True,'lr': lr / 100 * scale_288},
-        {'ep': (38, 40), 'lr': lr / 1000 * scale_288},
+        {'ep': 37, 'lr': lr / 100 * scale_224},
+        {'ep': 39, 'sz': 288, 'bs': 128, 'min_scale': 0.5, 'rect_val': True,'lr': lr / 100 * scale_288},
+        {'ep': (40, 44), 'lr': lr / 1000 * scale_288},
         #{'ep': (36, 40), 'lr': lr / 1000 * scale_288},
-        {'ep': (41, 43), 'lr': lr / 10000 * scale_288},
-        {'ep': (43, 45), 'sz': 288, 'bs' : 224, 'lr': lr / 10000 * scale_224}
+        {'ep': (45, 48), 'lr': lr / 10000 * scale_288},
+        {'ep': (49, 52), 'sz': 288, 'bs' : 224, 'lr': lr / 10000 * scale_224}
         #{'ep': (46, 50), 'sz': 320, 'bs': 64,  'lr': lr / 10000 * scale_320}
     ]
     phases = util.text_pickle(one_machine) #Ok? Unpickle?
