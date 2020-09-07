@@ -163,13 +163,13 @@ def main():
     if args.network == 'resnet50':
         model.resnet.resnet50(bn0=args.init_bn0).cuda()
     elif args.network == 'resnet50friendlyv1':
-        model = resnet.resnet50friendly(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv2':
-        model = resnet.resnet50friendly2(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly2(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv3':
-        model = resnet.resnet50friendly3(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly3(bn0=args.init_bn0, hybrid = True).cuda()
     elif args.network == 'resnet50friendlyv4':
-        model = resnet.resnet50friendly4(bn0=args.init_bn0).cuda()
+        model = resnet.resnet50friendly4(bn0=args.init_bn0, hybrid = True).cuda()
     #import resnet_friendly
     #model = resnet_friendly.ResNet50Friendly().cuda()
     #model = torchvision.models.mobilenet_v2(pretrained=False).cuda()
@@ -206,7 +206,7 @@ def main():
 
     log.console("Creating data loaders (this could take up to 10 minutes if volume needs to be warmed up)")
     # phases = util.text_unpickle(args.phases)
-    lr = 0.75
+    lr = 0.9
     scale_224 = 224 / 512
     scale_288 = 128 / 512
     one_machine = [
@@ -254,9 +254,9 @@ def main():
         if args.local_rank == 0:
             if is_best:
                 save_checkpoint(phase_save, epoch, model, best_top5, optimizer, is_best=True,
-                                    filename='model_best_'+args.network+'.pth.tar')
+                                    filename='model_best_'+args.network+args.name+'.pth.tar')
             else:
-                save_checkpoint(phase_save, epoch, model, top5, optimizer, is_best=False, filename='model_epoch_latest_'+args.network+'.pth.tar')
+                save_checkpoint(phase_save, epoch, model, top5, optimizer, is_best=False, filename='model_epoch_latest_'+args.network+args.name+'.pth.tar')
             phase = dm.get_phase(epoch)
             if phase:  save_checkpoint(phase_save, epoch, model, best_top5, optimizer,
                                        filename=f'sz{phase["bs"]}_checkpoint.path.tar')
