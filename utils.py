@@ -514,7 +514,7 @@ def sram_traffic(
 
     cycles = max(read_cycles, write_cycles)
     str_cycles = str(cycles)
-    return(str_cycles, util)
+    return str_cycles
 # End of sram_traffic()
 
         
