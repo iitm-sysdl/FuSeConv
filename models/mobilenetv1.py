@@ -69,6 +69,7 @@ class MobileNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(block, in_planes=32)
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(p=0.2)
         self.linear = nn.Linear(int(1024 * self.depth_mul), num_classes)
 
@@ -84,7 +85,7 @@ class MobileNet(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layers(out)
-        out = F.avg_pool2d(out, 7, stride=7)
+        out = self.avg_pool(out)
         out = out.view(out.size(0), -1)
         out = self.dropout(out)
         out = self.linear(out)
@@ -105,7 +106,10 @@ def test():
     y = net(x)
     print(y.size())
     net = MobileNetV1Friendly()
-    x = torch.randn(1,3,224,224)
+    x = torch.randn(1,3,128,128)
+    y = net(x)
+    print(y.size())
+    x = torch.randn(1,3,288,288)
     y = net(x)
     print(y.size())
 
