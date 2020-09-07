@@ -140,7 +140,6 @@ class InvertedResidualFriendly2(nn.Module):
         else:
             return out
 
-
 class MobileNetV2Class(nn.Module):
     def __init__(self,block,num_classes=1000,width_mult=1.0,
                  inverted_residual_setting=None,
@@ -164,18 +163,18 @@ class MobileNetV2Class(nn.Module):
 
         if inverted_residual_setting is None:
             inverted_residual_setting = [
-                # t, c, n, s
-                [1, 16, 1, 1],
-                [6, 24, 2, 2],
-                [6, 32, 3, 2],
-                [6, 64, 4, 2],
-                [6, 96, 3, 1],
-                [6, 160, 3, 2],
-                [6, 320, 1, 1],
+                # t, c, n, s, fuse
+                [1, 16, 1, 1, 0],
+                [6, 24, 2, 2, 1],
+                [6, 32, 3, 2, 1],
+                [6, 64, 4, 2, 0],
+                [6, 96, 3, 1, 0],
+                [6, 160, 3, 2, 0],
+                [6, 320, 1, 1,0],
             ]
 
         # only check the first element, assuming user knows t,c,n,s are required
-        if len(inverted_residual_setting) == 0 or len(inverted_residual_setting[0]) != 4:
+        if len(inverted_residual_setting) == 0 or len(inverted_residual_setting[0]) != 5:
             raise ValueError("inverted_residual_setting should be non-empty "
                              "or a 4-element list, got {}".format(inverted_residual_setting))
 
@@ -184,11 +183,15 @@ class MobileNetV2Class(nn.Module):
         self.last_channel = _make_divisible(last_channel * max(1.0, width_mult), round_nearest)
         features = [ConvBNReLU(3, input_channel, stride=2)]
         # building inverted residual blocks
-        for t, c, n, s in inverted_residual_setting:
+        for t, c, n, s, f in inverted_residual_setting:
+            if f == 0:
+                blockHybrid = InvertedResidual
+            else:
+                blockHybrid = block
             output_channel = _make_divisible(c * width_mult, round_nearest)
             for i in range(n):
                 stride = s if i == 0 else 1
-                features.append(block(input_channel, output_channel, stride, expand_ratio=t))
+                features.append(blockHybrid(input_channel, output_channel, stride, expand_ratio=t))
                 input_channel = output_channel
         # building last several layers
         features.append(ConvBNReLU(input_channel, self.last_channel, kernel_size=1))
