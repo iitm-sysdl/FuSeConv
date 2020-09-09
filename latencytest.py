@@ -6,6 +6,7 @@ from utils import *
 import mobilenetv3fusedHybrid as mv3hybrid
 import resnetfusedHybrid as resnetgyhbrid
 import mobilenetv2fusedHybrid as mv2hybrid
+import mobilenetv1hybrid as mv1hybrid
 
 x = torch.randn([1,3,224,224])
 mode = 'analytical'
@@ -63,10 +64,10 @@ net = MobileNetV1Friendly(1000)
 latf = getModelLatency(net, x, mode, arraySize)
 net = MobileNetV1Friendly2(1000)
 latf2 = getModelLatency(net, x, mode, arraySize)
-# net = mv2hybrid.MobileNetV2Friendly(1000)
-# lath = getModelLatency(net, x, mode, arraySize)
-# net = mv2hybrid.MobileNetV2Friendly2(1000)
-# lath2 = getModelLatency(net, x, mode, arraySize)
-print(latb/latf, latb/latf2)# latb/lath, latb/lath2)
+net = mv1hybrid.MobileNetV1Friendly(1000)
+lath = getModelLatency(net, x, mode, arraySize)
+net = mv1hybrid.MobileNetV1Friendly2(1000)
+lath2 = getModelLatency(net, x, mode, arraySize)
+print(latb/latf, latb/latf2, latb/lath, latb/lath2)
 
 
