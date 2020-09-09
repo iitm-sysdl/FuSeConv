@@ -902,6 +902,9 @@ def gemmCycles(dimension_rows, dimension_cols, ifmap_h, ifmap_w, filt_h, filt_w,
 class ForwardHook:
     def __init__(self, arraySize, mode):
         self.time = 0
+        self.pointwiseConv = 0
+        self.depthwiseConv = 0
+        self.otherConv = 0
         self.arraySize = arraySize
         if mode == 'analytical':
             self.latencyFn = gemmCycles
@@ -925,6 +928,10 @@ class ForwardHook:
                             num_channels=inC,strides=s_h, num_filt=outC)
             # print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
             t = int(t)
+            if k_h == 1 and k_w == 1:
+                self.pointwiseConv += t
+            else:
+                self.otherConv += t
         else:
             if k_h == 1:
                 num1Dconv = inDim_h * outC 
@@ -934,6 +941,7 @@ class ForwardHook:
                 time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
                 time = math.ceil(time)
                 t = time
+                self.depthwiseConv += t
             elif k_w ==1 :
                 num1Dconv = inDim_w * outC
                 numFolds = num1Dconv/self.arraySize
@@ -942,6 +950,7 @@ class ForwardHook:
                 time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
                 time = math.ceil(time)
                 t = time
+                self.depthwiseConv += t
             else:
                 t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
                             ifmap_h=inDim_h, ifmap_w=inDim_w,
@@ -949,13 +958,17 @@ class ForwardHook:
                             num_channels=1,strides=s_h, num_filt=1)
                 t = int(t)
                 t = t*outC
-            
+                self.depthwiseConv += t
+
             # print('Group > 1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
 
         self.time += t
     
     def clear(self):
         self.time = 0
+        self.pointwiseConv = 0
+        self.depthwiseConv = 0
+        self.otherConv = 0
 
 def getModelProp(model, x):
     flops, parameter = get_model_complexity_info(model, (x.shape[2], x.shape[3]), print_per_layer_stat=False, as_strings=False)
@@ -972,3 +985,15 @@ def getModelLatency(model, x, mode='analytical', arraySize=8):
 
     return latency
 
+def getModelLatencyBreakdown(model, x, mode='analytical', arraySize=8):    
+    hookfn = ForwardHook(arraySize, mode)
+    for layer in model.modules():
+        if isinstance(layer, nn.Conv2d):
+            layer.register_forward_hook(hookfn)
+    model(x)
+    totalLatency = hookfn.time
+    otherConvLatency = hookfn.otherConv
+    pointConvLatency = hookfn.pointwiseConv
+    depthConvLatency = hookfn.depthwiseConv
+    hookfn.clear()
+    return [totalLatency, otherConvLatency, pointConvLatency, depthConvLatency]
