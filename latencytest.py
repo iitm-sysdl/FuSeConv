@@ -69,5 +69,3 @@ lath = getModelLatency(net, x, mode, arraySize)
 net = mv1hybrid.MobileNetV1Friendly2(1000)
 lath2 = getModelLatency(net, x, mode, arraySize)
 print(latb/latf, latb/latf2, latb/lath, latb/lath2)
-
-
