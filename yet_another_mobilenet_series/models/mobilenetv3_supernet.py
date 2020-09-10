@@ -194,7 +194,7 @@ class MobileNetV3(nn.Module):
         self.active_fn = active_fn
         self.block = block
         self.blockFriendly = blockFriendly
-
+        self.mode = mode
         #if len(inverted_residual_setting) == 0 or (len(
         #        inverted_residual_setting[0]) not in [5, 8]):
         #    raise ValueError("inverted_residual_setting should be non-empty "
@@ -247,7 +247,10 @@ class MobileNetV3(nn.Module):
         #        #            **_extra_kwargs))
         #        input_channel = output_channel
         # building last several layers
-        last_conv = _make_divisible(960 * width_mult, round_nearest)
+        if self.mode == 'large':
+            last_conv = _make_divisible(960 * width_mult, round_nearest)
+        else:
+            last_conv = _make_divisible(576 * width_mutl, round_nearest)
         features.append(
             ConvBNReLU(input_channel,
                        last_conv,
