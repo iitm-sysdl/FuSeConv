@@ -1,0 +1,10 @@
+{
+    'n_class': 
+        1000,
+    'mode':
+        'small',
+    'dropout':
+         0.20,
+    'width_mult':
+        1.0
+}
