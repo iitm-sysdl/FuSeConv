@@ -30,7 +30,8 @@ def get_block_wrapper_friendly2(block_str):
                      stride,
                      exp,
                      se=False,
-                     nl='RE'):
+                     nl='RE',
+                     batch_norm_kwargs=None):
 
             #def _expand_ratio_to_hiddens(expand_ratio):
             #    if isinstance(expand_ratio, list):
@@ -221,7 +222,7 @@ class MobileNetV3(nn.Module):
         for k, exp, c, se, nl, s in inverted_bottleneck_setting:
             output_channel = _make_divisible(c * width_mult, round_nearest)
             exp_channel = _make_divisible(exp * width_mult, round_nearest)
-            features.append(blockFriendly(input_channel, output_channel, k, s, exp_channel, se, nl))
+            features.append(blockFriendly(input_channel, output_channel, k, s, exp_channel, se, nl, batch_norm_kwargs=batch_norm_kwargs))
             input_channel = output_channel
 
         #for t, c, n, s, ks, *extra in inverted_residual_setting:

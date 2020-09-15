@@ -719,13 +719,14 @@ def make_divisible(x, divisible_by=8):
 
 
 class MobileBottleneck(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
+    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE', batch_norm_kwargs=None):
         super(MobileBottleneck, self).__init__()
         assert stride in [1, 2]
         assert kernel in [3, 5]
         padding = (kernel - 1) // 2
         self.use_res_connect = stride == 1 and inp == oup
-
+        _batch_norm_kwargs = batch_norm_kwargs \
+            if batch_norm_kwargs is not None else {}
         conv_layer = nn.Conv2d
         norm_layer = nn.BatchNorm2d
 
@@ -743,16 +744,16 @@ class MobileBottleneck(nn.Module):
         self.conv = nn.Sequential(
             # pw
             conv_layer(inp, exp, 1, 1, 0, bias=False),
-            norm_layer(exp),
+            norm_layer(exp, **_batch_norm_kwargs),
             nlin_layer(inplace=True),
             # dw
             conv_layer(exp, exp, kernel, stride, padding, groups=exp, bias=False),
-            norm_layer(exp),
+            norm_layer(exp, **_batch_norm_kwargs),
             SELayer(exp),
             nlin_layer(inplace=True),
             # pw-linear
             conv_layer(exp, oup, 1, 1, 0, bias=False),
-            norm_layer(oup),
+            norm_layer(oup, **_batch_norm_kwargs),
         )
 
     def forward(self, x):
@@ -762,13 +763,14 @@ class MobileBottleneck(nn.Module):
             return self.conv(x)
 
 class MobileBottleneckFriendly(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
+    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE', batch_norm_kwargs=None):
         super(MobileBottleneckFriendly, self).__init__()
         assert stride in [1, 2]
         assert kernel in [3, 5]
         padding = (kernel - 1) // 2
         self.use_res_connect = stride == 1 and inp == oup
-
+        _batch_norm_kwargs = batch_norm_kwargs \
+            if batch_norm_kwargs is not None else {}
         if nl == 'RE':
             nlin_layer = nn.ReLU # or ReLU6
         elif nl == 'HS':
@@ -784,18 +786,18 @@ class MobileBottleneckFriendly(nn.Module):
         norm_layer = nn.BatchNorm2d
 
         self.conv1 = conv_layer(inp, exp, 1, 1, 0, bias=False)
-        self.bn1 = norm_layer(exp)
+        self.bn1 = norm_layer(exp, **_batch_norm_kwargs)
         self.nl1 = nlin_layer(inplace=True)
 
         self.conv2_h = conv_layer(exp//2, exp//2, kernel_size=(1, kernel),stride=stride, padding=(0, padding), groups=exp//2, bias=False)
-        self.bn2_h = norm_layer(exp//2)
+        self.bn2_h = norm_layer(exp//2, **_batch_norm_kwargs)
         self.conv2_v = conv_layer(exp//2, exp//2, kernel_size=(kernel, 1),stride=stride, padding=(padding, 0), groups=exp//2, bias=False)
-        self.bn2_v = norm_layer(exp//2)
+        self.bn2_v = norm_layer(exp//2, **_batch_norm_kwargs)
         self.se1 = SELayer(exp)
         self.nl2 = nlin_layer(inplace=True)
 
         self.conv3 = conv_layer(exp, oup, 1, 1, 0, bias=False)
-        self.bn3 = norm_layer(oup)
+        self.bn3 = norm_layer(oup, **_batch_norm_kwargs)
 
     def forward(self, x):
         out = self.conv1(x)
@@ -818,13 +820,14 @@ class MobileBottleneckFriendly(nn.Module):
             return out
 
 class MobileBottleneckFriendly2(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
+    def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE', batch_norm_kwargs=None):
         super(MobileBottleneckFriendly2, self).__init__()
         assert stride in [1, 2]
         assert kernel in [3, 5]
         padding = (kernel - 1) // 2
         self.use_res_connect = stride == 1 and inp == oup
-
+        _batch_norm_kwargs = batch_norm_kwargs \
+            if batch_norm_kwargs is not None else {}
         if nl == 'RE':
             nlin_layer = nn.ReLU # or ReLU6
         elif nl == 'HS':
@@ -840,18 +843,18 @@ class MobileBottleneckFriendly2(nn.Module):
         norm_layer = nn.BatchNorm2d
 
         self.conv1 = conv_layer(inp, exp, 1, 1, 0, bias=False)
-        self.bn1 = norm_layer(exp)
+        self.bn1 = norm_layer(exp, **_batch_norm_kwargs)
         self.nl1 = nlin_layer(inplace=True)
 
         self.conv2_h = conv_layer(exp, exp, kernel_size=(1, kernel),stride=stride, padding=(0, padding), groups=exp, bias=False)
-        self.bn2_h = norm_layer(exp)
+        self.bn2_h = norm_layer(exp, **_batch_norm_kwargs)
         self.conv2_v = conv_layer(exp, exp, kernel_size=(kernel, 1),stride=stride, padding=(padding, 0), groups=exp, bias=False)
-        self.bn2_v = norm_layer(exp)
+        self.bn2_v = norm_layer(exp, **_batch_norm_kwargs)
         self.se1 = SELayer(2*exp)
         self.nl2 = nlin_layer(inplace=True)
 
         self.conv3 = conv_layer(2*exp, oup, 1, 1, 0, bias=False)
-        self.bn3 = norm_layer(oup)
+        self.bn3 = norm_layer(oup, **_batch_norm_kwargs)
 
     def forward(self, x):
         out = self.conv1(x)
