@@ -152,7 +152,7 @@ class MnasNet(nn.Module):
                  active_fn='nn.ReLU6',
                  block='InvertedResidual',
                  blockFriendly='InvertedResidualFriendly',
-                 blockFriendly2='InvertedResidualFriendly2'
+                 blockFriendly2='InvertedResidualFriendly2',
                  round_nearest=8):
         """Build the network.
 
