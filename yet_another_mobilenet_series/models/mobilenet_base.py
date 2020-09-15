@@ -596,6 +596,7 @@ def get_block(name):
         'InvertedResidualFriendly': InvertedResidualFriendly,
         'InvertedResidualFriendly2': InvertedResidualFriendly2,
         'MobileBottleneck': MobileBottleneck,
+        'MobileBottleneckFriendly': MobileBottleneckFriendly,
         'MobileBottleneckFriendly2': MobileBottleneckFriendly2
     }[name]
 
