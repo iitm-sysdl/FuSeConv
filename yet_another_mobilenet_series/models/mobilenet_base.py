@@ -484,30 +484,27 @@ class InvertedResidualChannels(nn.Module):
 
 
 class InvertedResidualFriendly(nn.Module):
-    def __init__(self, inp, oup, stride, expand_ratio):
+    def __init__(self, inp, oup, kernel, stride, expand_ratio, batch_norm_kwargs=None):
         super(InvertedResidualFriendly, self).__init__()
         assert stride in [1, 2]
 
         hidden_dim = round(inp * expand_ratio)
         self.identity = stride == 1 and inp == oup
         self.expand_ratio = expand_ratio
+        _batch_norm_kwargs = batch_norm_kwargs if batch_norm_kwargs is not None else {}
 
         self.conv1 = nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False)
-        self.bn1   = nn.BatchNorm2d(hidden_dim)
+        self.bn1   = nn.BatchNorm2d(hidden_dim, **_batch_norm_kwargs)
         self.r1    = nn.ReLU6(inplace=True)
 
-        #self.conv2_h = nn.Conv2d(hidden_dim//2, hidden_dim//2, (1,3), stride, (0,1), groups=hidden_dim//2, bias=False)
-        self.conv2_h = nn.Conv2d(hidden_dim, hidden_dim, (1,3), stride, (0,1), groups=hidden_dim, bias=False)
-        #self.bn2_h   = nn.BatchNorm2d(hidden_dim//2)
-        self.bn2_h   = nn.BatchNorm2d(hidden_dim)
-        #self.conv2_v = nn.Conv2d(hidden_dim//2, hidden_dim//2, (3,1), stride, (1,0), groups=hidden_dim//2, bias=False)
-        self.conv2_v = nn.Conv2d(hidden_dim, hidden_dim, (3,1), stride, (1,0), groups=hidden_dim, bias=False)
-        #self.bn2_v   = nn.BatchNorm2d(hidden_dim//2)
-        self.bn2_v   = nn.BatchNorm2d(hidden_dim)
+        self.conv2_h = nn.Conv2d(hidden_dim//2, hidden_dim//2, (1, kernel), stride, (0, kernel//2), groups=hidden_dim//2, bias=False)
+        self.bn2_h   = nn.BatchNorm2d(hidden_dim//2, **_batch_norm_kwargs)
+        self.conv2_v = nn.Conv2d(hidden_dim//2, hidden_dim//2, (kernel, 1), stride, (kernel//2,0), groups=hidden_dim//2, bias=False)
+        self.bn2_v   = nn.BatchNorm2d(hidden_dim//2, **_batch_norm_kwargs)
         self.r2    = nn.ReLU6(inplace=True)
 
-        self.conv3 = nn.Conv2d(2*hidden_dim, oup, 1, 1, 0, bias=False)
-        self.bn3   = nn.BatchNorm2d(oup)
+        self.conv3 = nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)
+        self.bn3   = nn.BatchNorm2d(oup, **_batch_norm_kwargs)
 
     def forward(self, x):
         if self.expand_ratio == 1:
@@ -515,7 +512,48 @@ class InvertedResidualFriendly(nn.Module):
         else:
             out = self.r1(self.bn1(self.conv1(x)))
 
-        #out1, out2 = out.chunk(2,1)
+        out1, out2 = out.chunk(2,1)
+        out1 = self.r2(self.bn2_h(self.conv2_h(out1)))
+        out2 = self.r2(self.bn2_v(self.conv2_v(out2)))
+        out = torch.cat([out1, out2], 1)
+
+        out = self.bn3(self.conv3(out))
+
+        if self.identity:
+            return x + out
+        else:
+            return out
+
+class InvertedResidualFriendly2(nn.Module):
+    def __init__(self, inp, oup, kernel, stride, expand_ratio, batch_norm_kwargs=None):
+        super(InvertedResidualFriendly2, self).__init__()
+        assert stride in [1, 2]
+
+        hidden_dim = round(inp * expand_ratio)
+        self.identity = stride == 1 and inp == oup
+        self.expand_ratio = expand_ratio
+        _batch_norm_kwargs = batch_norm_kwargs \
+            if batch_norm_kwargs is not None else {}
+
+        self.conv1 = nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False)
+        self.bn1   = nn.BatchNorm2d(hidden_dim, **_batch_norm_kwargs)
+        self.r1    = nn.ReLU6(inplace=True)
+
+        self.conv2_h = nn.Conv2d(hidden_dim, hidden_dim, (1, kernel), stride, (0, kernel//2), groups=hidden_dim, bias=False)
+        self.bn2_h   = nn.BatchNorm2d(hidden_dim, **_batch_norm_kwargs)
+        self.conv2_v = nn.Conv2d(hidden_dim, hidden_dim, (kernel, 1), stride, (kernel//2,0), groups=hidden_dim, bias=False)
+        self.bn2_v   = nn.BatchNorm2d(hidden_dim, **_batch_norm_kwargs)
+        self.r2    = nn.ReLU6(inplace=True)
+
+        self.conv3 = nn.Conv2d(2*hidden_dim, oup, 1, 1, 0, bias=False)
+        self.bn3   = nn.BatchNorm2d(oup, **_batch_norm_kwargs)
+
+    def forward(self, x):
+        if self.expand_ratio == 1:
+            out = x
+        else:
+            out = self.r1(self.bn1(self.conv1(x)))
+
         out1 = self.r2(self.bn2_h(self.conv2_h(out)))
         out2 = self.r2(self.bn2_v(self.conv2_v(out)))
         out = torch.cat([out1, out2], 1)
@@ -526,6 +564,7 @@ class InvertedResidualFriendly(nn.Module):
             return x + out
         else:
             return out
+
 
 def get_active_fn(name):
     """Select activation function."""
@@ -554,7 +593,9 @@ def get_block(name):
     """Select building block."""
     return {
         'InvertedResidualChannels': InvertedResidualChannels,
+        'InvertedResidual': InvertedResidual,
         'InvertedResidualFriendly': InvertedResidualFriendly,
+        'InvertedResidualFriendly2': InvertedResidualFriendly2,
         'InvertedResidualChannelsFused': InvertedResidualChannelsFused,
         'MobileBottleneck': MobileBottleneck,
         'MobileBottleneckFriendly2': MobileBottleneckFriendly2
@@ -835,109 +876,5 @@ class MobileBottleneckFriendly2(nn.Module):
             return out
 
 
-class MobileNetV3Class(nn.Module):
-    def __init__(self, block='MobileBottleneckFriendly2', n_class=1000, mode='large', dropout=0.20, width_mult=1.0):
-        super(MobileNetV3Class, self).__init__()
-        input_channel = 16
-        last_channel = 1280
-        if mode == 'large':
-            # refer to Table 1 in paper
-            mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  False, 'RE', 1],
-                [3, 64,  24,  False, 'RE', 2],
-                [3, 72,  24,  False, 'RE', 1],
-                [5, 72,  40,  True,  'RE', 2],
-                [5, 120, 40,  True,  'RE', 1],
-                [5, 120, 40,  True,  'RE', 1],
-                [3, 240, 80,  False, 'HS', 2],
-                [3, 200, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 184, 80,  False, 'HS', 1],
-                [3, 480, 112, True,  'HS', 1],
-                [3, 672, 112, True,  'HS', 1],
-                [5, 672, 160, True,  'HS', 2],
-                [5, 960, 160, True,  'HS', 1],
-                [5, 960, 160, True,  'HS', 1],
-            ]
-        elif mode == 'small':
-            # refer to Table 2 in paper
-            mobile_setting = [
-                # k, exp, c,  se,     nl,  s,
-                [3, 16,  16,  True,  'RE', 2],
-                [3, 72,  24,  False, 'RE', 2],
-                [3, 88,  24,  False, 'RE', 1],
-                [5, 96,  40,  True,  'HS', 2],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 240, 40,  True,  'HS', 1],
-                [5, 120, 48,  True,  'HS', 1],
-                [5, 144, 48,  True,  'HS', 1],
-                [5, 288, 96,  True,  'HS', 2],
-                [5, 576, 96,  True,  'HS', 1],
-                [5, 576, 96,  True,  'HS', 1],
-            ]
-        else:
-            raise NotImplementedError
-
-        # building first layer
-        last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else last_channel
-        self.features = [conv_bn(3, input_channel, 2, nlin_layer=Hswish)]
-        self.classifier = []
-
-        # building mobile blocks
-        for k, exp, c, se, nl, s in mobile_setting:
-            output_channel = make_divisible(c * width_mult)
-            exp_channel = make_divisible(exp * width_mult)
-            self.features.append(block(input_channel, output_channel, k, s, exp_channel, se, nl))
-            input_channel = output_channel
-
-        # building last several layers
-        if mode == 'large':
-            last_conv = make_divisible(960 * width_mult)
-            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
-            self.features.append(nn.AdaptiveAvgPool2d(1))
-            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
-            self.features.append(Hswish(inplace=True))
-        elif mode == 'small':
-            last_conv = make_divisible(576 * width_mult)
-            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
-            # self.features.append(SEModule(last_conv))  # refer to paper Table2, but I think this is a mistake
-            self.features.append(nn.AdaptiveAvgPool2d(1))
-            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
-            self.features.append(Hswish(inplace=True))
-        else:
-            raise NotImplementedError
-
-        # make it nn.Sequential
-        self.features = nn.Sequential(*self.features)
-
-        # building classifier
-        self.classifier = nn.Sequential(
-            nn.Dropout(p=dropout),    # refer to paper section 6
-            nn.Linear(last_channel, n_class),
-        )
-
-        self._initialize_weights()
-
-    def forward(self, x):
-        x = self.features(x)
-        x = x.mean(3).mean(2)
-        x = self.classifier(x)
-        return x
-
-    def _initialize_weights(self):
-        # weight initialization
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out')
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.BatchNorm2d):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
 
 

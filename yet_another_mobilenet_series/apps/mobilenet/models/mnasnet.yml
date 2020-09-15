@@ -1,0 +1,22 @@
+{
+    'active_fn': 
+        'nn.ReLU6',
+    'num_classes':
+        1000,
+    'input_channel':
+        32,
+    'last_channel':
+        1280,
+    'width_mult':
+        1.0,
+    'round_nearest':
+        8,
+        t, c, n, s, ks, *extra
+    'inverted_residual_setting': [[1, 16, 1, 1, [3]], 
+                                  [3, 24, 3, 2, [3]],
+                                  [3, 40, 3, 2, [5]], 
+                                  [6, 80, 3, 2, [5]],
+                                  [6, 96, 2, 1, [3]], 
+                                  [6, 192, 4, 2, [5]],
+                                  [6, 320, 1, 1, [3]]]
+}
