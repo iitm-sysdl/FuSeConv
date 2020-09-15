@@ -45,7 +45,7 @@ def get_block_wrapper(block_str):
             #    return hidden_dims, expand
 
             #hidden_dims, expand = _expand_ratio_to_hiddens(expand_ratio)
-            super(MobileBottleneckFriendly2,
+            super(MobileBottleneck,
                   self).__init__(inp,
                                  oup,
                                  kernel,
@@ -86,7 +86,7 @@ def get_block_wrapper_friendly(block_str):
             #    return hidden_dims, expand
 
             #hidden_dims, expand = _expand_ratio_to_hiddens(expand_ratio)
-            super(MobileBottleneckFriendly2,
+            super(MobileBottleneckFriendly,
                   self).__init__(inp,
                                  oup,
                                  kernel,
