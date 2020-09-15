@@ -51,7 +51,7 @@ test_only: False
 random_seed: 1995
 reset_parameters: True
 reset_param_method: mnas
-model: models.mobilenet_supernet
+model: models.mnasnet_supernet
 
 # bn calibration
 bn_calibration: False

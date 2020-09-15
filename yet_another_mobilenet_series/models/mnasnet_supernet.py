@@ -86,7 +86,7 @@ def get_block_wrapper_friendly(block_str):
             super(InvertedResidualFriendly,
                   self).__init__(inp,
                                  oup,
-                                 kernel
+                                 kernel,
                                  stride,
                                  expand_ratio,
                                  batch_norm_kwargs=batch_norm_kwargs
@@ -126,7 +126,7 @@ def get_block_wrapper_friendly2(block_str):
             super(InvertedResidualFriendly2,
                   self).__init__(inp,
                                  oup,
-                                 kernel
+                                 kernel,
                                  stride,
                                  expand_ratio,
                                  batch_norm_kwargs=batch_norm_kwargs
