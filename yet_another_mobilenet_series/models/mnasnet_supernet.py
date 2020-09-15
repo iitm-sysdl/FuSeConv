@@ -174,7 +174,7 @@ class MnasNet(nn.Module):
             round_nearest (int): Round the number of channels in each layer to
                 be a multiple of this number Set to 1 to turn off rounding.
         """
-        super(MmasNet, self).__init__()
+        super(MnasNet, self).__init__()
         batch_norm_kwargs = {
             'momentum': batch_norm_momentum,
             'eps': batch_norm_epsilon
