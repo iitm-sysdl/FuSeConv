@@ -119,6 +119,8 @@ def main():
             net = MobileNetV3('small', numClasses)
         elif args.Network == 'MobileNetV3L':
             net = MobileNetV3('large', numClasses)
+        elif args.Network == 'MnasNet':
+            net = MnasNet(num_classes)    
     else:
         if args.Network == 'ResNet':
             net = ResNet50Friendly(numClasses)
@@ -134,6 +136,8 @@ def main():
             net = MobileNetV3Friendly('small', numClasses)
         elif args.Network == 'MobileNetV3L':
             net = MobileNetV3Friendly('large', numClasses)
+        elif args.Network == 'MnasNet':
+            net = MnasNetFriendly(num_classes)
     
     criterion = nn.CrossEntropyLoss().cuda()    
     optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
@@ -151,7 +155,7 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer'])
 
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
-                    milestones=[20, 40, 60, 70], gamma=0.1, last_epoch=startEpoch-1)
+                    milestones=[20, 40, 60, 70, 80, 90], gamma=0.1, last_epoch=startEpoch-1)
     
     for epoch in range(startEpoch, 100):
         train(net, trainloader, criterion, optimizer, epoch)
@@ -182,7 +186,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description = "Train CIFAR Models")
     parser.add_argument("--Dataset", "-D", type = str, help = 'CIFAR10, CIFAR100', required=True)
-    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, VGG, SqueezeNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L', required=True)
+    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, VGG, SqueezeNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L, MnasNet', required=True)
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
