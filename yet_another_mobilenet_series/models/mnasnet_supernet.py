@@ -150,7 +150,7 @@ class MnasNet(nn.Module):
                  batch_norm_momentum=0.1,
                  batch_norm_epsilon=1e-5,
                  active_fn='nn.ReLU6',
-                 block='InvertedResidual',
+                 block='InvertedResidualChannels',
                  blockFriendly='InvertedResidualFriendly',
                  blockFriendly2='InvertedResidualFriendly2',
                  round_nearest=8):
@@ -199,7 +199,7 @@ class MnasNet(nn.Module):
         active_fn = get_active_fn(active_fn)
         block = get_block_wrapper(block)
         blockFriendly = get_block_wrapper_friendly(blockFriendly)
-        blockFriendly2 = get_block_wrapper_friendly(blockFriendly2)
+        blockFriendly2 = get_block_wrapper_friendly2(blockFriendly2)
         # building first layer
         input_channel = _make_divisible(input_channel * width_mult,
                                         round_nearest)
@@ -223,7 +223,7 @@ class MnasNet(nn.Module):
             for i in range(n):
                 stride = s if i == 0 else 1
                 #if c == 24 or c == 32 or c == 64:
-                features.append(blockFriendly2(input_channel, output_channel, ks, stride, t, batch_norm_kwargs=batch_norm_kwargs))
+                features.append(blockFriendly2(input_channel, output_channel, ks[0], stride, t, batch_norm_kwargs=batch_norm_kwargs))
                 #else:
                 #    features.append(
                 #        block(input_channel,

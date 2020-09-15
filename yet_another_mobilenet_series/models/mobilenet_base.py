@@ -374,7 +374,7 @@ class InvertedResidualChannelsFused(nn.Module):
                     self.se_ratio, self.nl_s, self.nl_c)
 
 
-class InvertedResidual(nn.Module):
+class InvertedResidualChannels(nn.Module):
     """MobiletNetV2 building block."""
 
     def __init__(self,
@@ -386,7 +386,7 @@ class InvertedResidual(nn.Module):
                  expand,
                  active_fn=None,
                  batch_norm_kwargs=None):
-        super(InvertedResidual, self).__init__()
+        super(InvertedResidualChannels, self).__init__()
         assert stride in [1, 2]
         assert len(channels) == len(kernel_sizes)
 
@@ -592,7 +592,7 @@ def get_nl_norm_fn(name):
 def get_block(name):
     """Select building block."""
     return {
-        'InvertedResidual': InvertedResidual,
+        'InvertedResidualChannels': InvertedResidualChannels,
         'InvertedResidualFriendly': InvertedResidualFriendly,
         'InvertedResidualFriendly2': InvertedResidualFriendly2,
         'MobileBottleneck': MobileBottleneck,
