@@ -238,16 +238,16 @@ class MobileNetV3Class(nn.Module):
             # refer to Table 1 in paper
             mobile_setting = [
                 # k, exp, c,  se,     nl,  s, fuse
-                [3, 16,  16,  False, 'RE', 1, 1],
+                [3, 16,  16,  False, 'RE', 1, 0],
                 [3, 64,  24,  False, 'RE', 2, 1],
                 [3, 72,  24,  False, 'RE', 1, 1],
                 [5, 72,  40,  True,  'RE', 2, 1],
                 [5, 120, 40,  True,  'RE', 1, 1],
                 [5, 120, 40,  True,  'RE', 1, 1],
-                [3, 240, 80,  False, 'HS', 2, 0],
-                [3, 200, 80,  False, 'HS', 1, 0],
-                [3, 184, 80,  False, 'HS', 1, 1],
-                [3, 184, 80,  False, 'HS', 1, 1],
+                [3, 240, 80,  False, 'HS', 2, 1],
+                [3, 200, 80,  False, 'HS', 1, 1],
+                [3, 184, 80,  False, 'HS', 1, 0],
+                [3, 184, 80,  False, 'HS', 1, 0],
                 [3, 480, 112, True,  'HS', 1, 0],
                 [3, 672, 112, True,  'HS', 1, 0],
                 [5, 672, 160, True,  'HS', 2, 0],
