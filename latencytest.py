@@ -7,10 +7,11 @@ import mobilenetv3fusedHybrid as mv3hybrid
 import resnetfusedHybrid as resnetgyhbrid
 import mobilenetv2fusedHybrid as mv2hybrid
 import mobilenetv1hybrid as mv1hybrid
+import mnasnethybrid as mnashybrid
 
 x = torch.randn([1,3,224,224])
-# mode = 'analytical'
-mode ='scale-sim'
+mode = 'analytical'
+# mode ='scale-sim'
 arraySize = 64
 start_time = time.time()
 #####MnasNet
@@ -22,12 +23,12 @@ net = MnasNetFriendly(1000)
 latf = getModelLatency(net, x, mode, arraySize)
 net = MnasNetFriendly2(1000)
 latf2 = getModelLatency(net, x, mode, arraySize)
-# net = mv2hybrid.MobileNetV2Friendly(1000)
-# lath = getModelLatency(net, x, mode, arraySize)
-# net = mv2hybrid.MobileNetV2Friendly2(1000)
-# lath2 = getModelLatency(net, x, mode, arraySize)
-print(latb/latf, latb/latf2)#, latb/lath, latb/lath2)
-exit()
+net = mnashybrid.MnasNetFriendly(1000)
+lath = getModelLatency(net, x, mode, arraySize)
+net = mnashybrid.MnasNetFriendly2(1000)
+lath2 = getModelLatency(net, x, mode, arraySize)
+print(latb/latf, latb/latf2, latb/lath, latb/lath2)
+# exit()
 ###########MobileNetV3##########
 print("MobileNet-V3")
 for size in ['small', 'large']:

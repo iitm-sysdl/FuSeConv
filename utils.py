@@ -896,7 +896,7 @@ def gemmCycles(dimension_rows, dimension_cols, ifmap_h, ifmap_w, filt_h, filt_w,
         if numFilter % arrY > 0:
             cycles = cycles + (numInput//arrX) * (numTime + arrX + (numFilter % arrY) - 1)
         if numInput % arrX > 0 and numFilter % arrY > 0:
-            cycles = cycles + (numInput//arrX) * (numTime + (numInput % arrX) + (numFilter % arrY) - 1)
+            cycles = cycles + (numTime + (numInput % arrX) + (numFilter % arrY) - 1)
         return cycles
 
 class ForwardHook:
@@ -996,4 +996,4 @@ def getModelLatencyBreakdown(model, x, mode='analytical', arraySize=8):
     pointConvLatency = hookfn.pointwiseConv
     depthConvLatency = hookfn.depthwiseConv
     hookfn.clear()
-    return [totalLatency, otherConvLatency, pointConvLatency, depthConvLatency]
+    return otherConvLatency, pointConvLatency, depthConvLatency
