@@ -905,70 +905,84 @@ class ForwardHook:
         self.pointwiseConv = 0
         self.depthwiseConv = 0
         self.otherConv = 0
+        self.linear = 0
         self.arraySize = arraySize
         if mode == 'analytical':
             self.latencyFn = gemmCycles
         else:
             self.latencyFn = sram_traffic
     def __call__(self, module, module_in, module_out):
-        inT = module_in[0]
-        inDim_h, inDim_w = (inT.shape[2], inT.shape[3])
-        inC = module.in_channels
-        outC = module.out_channels
-        k_h, k_w = module.kernel_size
-        s_h, s_w = module.stride
-        p_h, p_w = module.padding
-        g = module.groups
-        inDim_h = inDim_h + 2*p_h
-        inDim_w = inDim_w + 2*p_w
-        if g == 1:
-            t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
-                            ifmap_h=inDim_h, ifmap_w=inDim_w,
-                            filt_h=k_h, filt_w=k_w,
-                            num_channels=inC,strides=s_h, num_filt=outC)
-            # print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
-            t = int(t)
-            if k_h == 1 and k_w == 1:
-                self.pointwiseConv += t
-            else:
-                self.otherConv += t
-        else:
-            if k_h == 1:
-                num1Dconv = inDim_h * outC 
-                numFolds = num1Dconv/self.arraySize
-                oneFoldTime = self.arraySize + k_w
-                num1DconvRow = inDim_h/self.arraySize
-                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
-                time = math.ceil(time)
-                t = time
-                self.depthwiseConv += t
-            elif k_w ==1 :
-                num1Dconv = inDim_w * outC
-                numFolds = num1Dconv/self.arraySize
-                oneFoldTime = self.arraySize + k_h
-                num1DconvRow = inDim_w/self.arraySize
-                time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
-                time = math.ceil(time)
-                t = time
-                self.depthwiseConv += t
-            else:
+        if isinstance(module, nn.Conv2d):
+            inT = module_in[0]
+            inDim_h, inDim_w = (inT.shape[2], inT.shape[3])
+            inC = module.in_channels
+            outC = module.out_channels
+            k_h, k_w = module.kernel_size
+            s_h, s_w = module.stride
+            p_h, p_w = module.padding
+            g = module.groups
+            inDim_h = inDim_h + 2*p_h
+            inDim_w = inDim_w + 2*p_w
+            if g == 1:
                 t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
-                            ifmap_h=inDim_h, ifmap_w=inDim_w,
-                            filt_h=k_h, filt_w=k_w,
-                            num_channels=1,strides=s_h, num_filt=1)
+                                ifmap_h=inDim_h, ifmap_w=inDim_w,
+                                filt_h=k_h, filt_w=k_w,
+                                num_channels=inC,strides=s_h, num_filt=outC)
+                # print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
                 t = int(t)
-                t = t*outC
-                self.depthwiseConv += t
-
-            # print('Group > 1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
-
-        self.time += t
+                if k_h == 1 and k_w == 1:
+                    self.pointwiseConv += t
+                else:
+                    self.otherConv += t
+            else:
+                if k_h == 1:
+                    num1Dconv = inDim_h * outC 
+                    numFolds = num1Dconv/self.arraySize
+                    oneFoldTime = self.arraySize + k_w
+                    num1DconvRow = inDim_h/self.arraySize
+                    time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                    time = math.ceil(time)
+                    t = time
+                    self.depthwiseConv += t
+                elif k_w ==1 :
+                    num1Dconv = inDim_w * outC
+                    numFolds = num1Dconv/self.arraySize
+                    oneFoldTime = self.arraySize + k_h
+                    num1DconvRow = inDim_w/self.arraySize
+                    time = (math.ceil(numFolds)/s_w)*(oneFoldTime*math.ceil(num1DconvRow))
+                    time = math.ceil(time)
+                    t = time
+                    self.depthwiseConv += t
+                else:
+                    t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+                                ifmap_h=inDim_h, ifmap_w=inDim_w,
+                                filt_h=k_h, filt_w=k_w,
+                                num_channels=1,strides=s_h, num_filt=1)
+                    t = int(t)
+                    t = t*outC
+                    self.depthwiseConv += t
+                # print('Group > 1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
+            self.time += t
+        elif isinstance(module, nn.Linear):
+            inT = module_in[0]
+            inDim_h, inDim_w = (inT.shape[0], inT.shape[1])
+            assert inDim_h == 1
+            inC = module.in_features
+            outC = module.out_features
+            t = self.latencyFn(dimension_rows=self.arraySize, dimension_cols=self.arraySize, 
+                                ifmap_h=1, ifmap_w=1,
+                                filt_h=1, filt_w=1,
+                                num_channels=inC,strides=1, num_filt=outC)
+            t = int(t)
+            self.linear += t
+            self.time += t
     
     def clear(self):
         self.time = 0
         self.pointwiseConv = 0
         self.depthwiseConv = 0
         self.otherConv = 0
+        self.linear = 0
 
 def getModelProp(model, x):
     flops, parameter = get_model_complexity_info(model, (x.shape[2], x.shape[3]), print_per_layer_stat=False, as_strings=False)
@@ -978,6 +992,8 @@ def getModelLatency(model, x, mode='analytical', arraySize=8):
     hookfn = ForwardHook(arraySize, mode)
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d):
+            layer.register_forward_hook(hookfn)
+        elif isinstance(layer, nn.Linear):
             layer.register_forward_hook(hookfn)
     model(x)
     latency = hookfn.time
@@ -990,10 +1006,13 @@ def getModelLatencyBreakdown(model, x, mode='analytical', arraySize=8):
     for layer in model.modules():
         if isinstance(layer, nn.Conv2d):
             layer.register_forward_hook(hookfn)
+        elif isinstance(layer, nn.Linear):
+            layer.register_forward_hook(hookfn)
     model(x)
     totalLatency = hookfn.time
     otherConvLatency = hookfn.otherConv
     pointConvLatency = hookfn.pointwiseConv
     depthConvLatency = hookfn.depthwiseConv
+    linearLatency = hookfn.linear
     hookfn.clear()
-    return otherConvLatency, pointConvLatency, depthConvLatency
+    return otherConvLatency, pointConvLatency, depthConvLatency, linearLatency
