@@ -78,7 +78,7 @@ def test(net, testloader, criterion, epoch):
     return correct*1.0/total
 
 def main():
-    wandb.init(name=args.name, project="cifar-224")
+    wandb.init(name=args.name, project="cifar-224-full-variant")
     transform_train = transforms.Compose([
                         transforms.Resize(224),
                         transforms.RandomCrop(224, padding=4),
@@ -120,24 +120,45 @@ def main():
         elif args.Network == 'MobileNetV3L':
             net = MobileNetV3('large', numClasses)
         elif args.Network == 'MnasNet':
-            net = MnasNet(num_classes)    
+            net = MnasNet(numClasses)    
     else:
-        if args.Network == 'ResNet':
-            net = ResNet50Friendly(numClasses)
-        elif args.Network == 'VGG':
-            net = VGGFriendly(numClasses)
-        elif args.Network == 'SqueezeNet':
-            net = SqueezeNetFriendly(numClasses)
-        elif args.Network == 'MobileNetV1':
-            net = MobileNetV1Friendly(numClasses)
-        elif args.Network == 'MobileNetV2':
-            net = MobileNetV2Friendly(numClasses)
-        elif args.Network == 'MobileNetV3S':
-            net = MobileNetV3Friendly('small', numClasses)
-        elif args.Network == 'MobileNetV3L':
-            net = MobileNetV3Friendly('large', numClasses)
-        elif args.Network == 'MnasNet':
-            net = MnasNetFriendly(num_classes)
+        if args.variant == 'friendlyv1':
+            if args.Network == 'ResNet':
+                net = ResNet50Friendly(numClasses)
+            elif args.Network == 'VGG':
+                net = VGGFriendly(numClasses)
+            elif args.Network == 'SqueezeNet':
+                net = SqueezeNetFriendly(numClasses)
+            elif args.Network == 'MobileNetV1':
+                net = MobileNetV1Friendly(numClasses)
+            elif args.Network == 'MobileNetV2':
+                net = MobileNetV2Friendly(numClasses)
+            elif args.Network == 'MobileNetV3S':
+                net = MobileNetV3Friendly('small', numClasses)
+            elif args.Network == 'MobileNetV3L':
+                net = MobileNetV3Friendly('large', numClasses)
+            elif args.Network == 'MnasNet':
+                net = MnasNetFriendly(numClasses)
+        elif args.variant == 'friendlyv2':
+            if args.Network == 'ResNet':
+                net = ResNet50Friendly2(numClasses)
+            elif args.Network == 'VGG':
+                net = VGGFriendly2(numClasses)
+            elif args.Network == 'SqueezeNet':
+                net = SqueezeNetFriendly2(numClasses)
+            elif args.Network == 'MobileNetV1':
+                net = MobileNetV1Friendly2(numClasses)
+            elif args.Network == 'MobileNetV2':
+                net = MobileNetV2Friendly2(numClasses)
+            elif args.Network == 'MobileNetV3S':
+                net = MobileNetV3Friendly2('small', numClasses)
+            elif args.Network == 'MobileNetV3L':
+                net = MobileNetV3Friendly2('large', numClasses)
+            elif args.Network == 'MnasNet':
+                net = MnasNetFriendly2(numClasses)
+        else:
+            print("Provide a valid variant")
+            exit(0)
     
     criterion = nn.CrossEntropyLoss().cuda()    
     optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
@@ -157,7 +178,7 @@ def main():
     lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                     milestones=[20, 40, 60, 70, 80, 90], gamma=0.1, last_epoch=startEpoch-1)
     
-    for epoch in range(startEpoch, 100):
+    for epoch in range(startEpoch, 60):
         train(net, trainloader, criterion, optimizer, epoch)
         lr_scheduler.step()
         acc = test(net, testloader, criterion, epoch)
@@ -190,6 +211,7 @@ if __name__ == '__main__':
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
+    parser.add_argument('--variant', '-v', type=str, help='Baseline or Friendly', required=True)
     args = parser.parse_args()
 
     if not os.path.isdir(args.name):
