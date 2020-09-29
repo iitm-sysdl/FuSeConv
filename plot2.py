@@ -99,7 +99,7 @@ mode = 'analytical'
 arraySize = 64
 
 net1 = MobileNetV2(1000)
-net2 = MobileNetV2Friendly(1000)
+net2 = MobileNetV2Friendly2(1000)
 # net3 = MobileNetV2Friendly2(1000)
 lat1 = getModelLatency(net1, x, mode, arraySize)
 lat2 = getModelLatency(net2, x, mode, arraySize)
