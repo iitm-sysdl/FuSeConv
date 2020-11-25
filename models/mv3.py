@@ -1,6 +1,8 @@
+import timm
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import random
 
 cfg = [ # k, exp, c,  se,     nl,  s,
         [3, 64,  24,  False, 'RE', 2],
@@ -137,6 +139,56 @@ class MobileBottleneck(nn.Module):
         else:
             return out
 
+class MobileBottleneckFuse(nn.Module):
+    def __init__(self, fuse, inp, oup, kernel, stride, exp, se=False, nl='RE'):
+        super(MobileBottleneckFuse, self).__init__()
+        padding = (kernel - 1) // 2
+        self.use_res_connect = stride == 1 and inp == oup
+        self.fuse = fuse
+
+        if fuse == True:
+            self.transformh = nn.parameter.Parameter(torch.eye(kernel,1))
+            self.transformw = nn.parameter.Parameter(torch.eye(1, kernel))
+        
+        if nl == 'RE':
+            nlin_layer = nn.ReLU 
+        elif nl == 'HS':
+            nlin_layer = Hswish
+
+        if se:
+            SELayer = SEModule
+        else:
+            SELayer = Identity
+
+        self.pconv1 = nn.Conv2d(inp, exp, kernel_size=1, stride=1, bias=False)
+        self.bn1    = nn.BatchNorm2d(exp)
+        self.nl1    = nlin_layer(inplace=True)
+
+        self.dconv  = nn.Conv2d(exp, exp, kernel_size=kernel, stride=stride, padding=padding, groups=exp, bias=False)
+        self.bn2    = nn.BatchNorm2d(exp) 
+        self.nl2    = nlin_layer(inplace=True)
+        self.se     = SELayer(exp)
+        self.pconv2 = nn.Conv2d(exp, oup, kernel_size=1, stride=1, bias=False)
+        self.bn3    = nn.BatchNorm2d(oup)
+        
+    def forward(self, x):
+        out = self.pconv1(x)
+        out = self.bn1(out)
+        out = self.nl1(out)
+
+        out = self.dconv(out)
+        out = self.bn2(out)
+        out = self.nl2(out)
+        out = self.se(out)
+
+        out = self.pconv2(out)
+        out = self.bn3(out)
+        
+        if self.use_res_connect:
+            return x + out
+        else:
+            return out
+
 
 class MobileNetV3(nn.Module):
     def __init__(self, n_class=1000, cfg=cfg, dropout=0.20, width_mult=1.0):
@@ -181,9 +233,52 @@ class MobileNetV3(nn.Module):
         out = self.classifier(out)
         return out
 
+class MobileNetV3Subnet(nn.Module):
+    def __init__(self, fuse_list, n_class=1000, cfg=cfg, dropout=0.20, width_mult=1.0):
+        super(MobileNetV3Subnet, self).__init__()
+        input_channel = 16
+        last_channel = make_divisible(1280 * width_mult) if width_mult > 1.0 else 1280
+
+        self.convstem = [nn.Conv2d(3, input_channel, kernel_size=3, stride=2, padding=1, bias=False),
+                         nn.BatchNorm2d(input_channel),
+                         Hswish()]
+        self.convstem = nn.Sequential(*self.convstem)
+
+        self.features = [DepthwiseSeparableBlock(input_channel, 16, 3, 1, 16, se=False, nl='RE')]    
+        input_channel = 16
+        
+        for i, [k, exp, c, se, nl, s] in enumerate(cfg):
+            output_channel = make_divisible(c * width_mult)
+            exp_channel = make_divisible(exp * width_mult)
+            self.features.append(MobileBottleneckFuse(fuse_list[i], input_channel, output_channel, k, s, exp_channel, se, nl))
+            input_channel = output_channel
+        self.features = nn.Sequential(*self.features)
+
+        last_conv_channel = make_divisible(960 * width_mult)
+        self.tail = [nn.Conv2d(input_channel, last_conv_channel, kernel_size=1, bias=False),
+                     nn.BatchNorm2d(last_conv_channel),
+                     Hswish(),
+                     nn.AdaptiveAvgPool2d(1),
+                     nn.Conv2d(last_conv_channel, last_channel, kernel_size=1),
+                     Hswish()
+        ]
+        self.tail = nn.Sequential(*self.tail)
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=dropout),    # refer to paper section 6
+            nn.Linear(last_channel, n_class),
+        )
+
+    def forward(self, x):
+        out = self.convstem(x)
+        out = self.features(out)
+        out = self.tail(out)
+        out = out.flatten(1)
+        out = self.classifier(out)
+        return out
+
 def test():
     net = MobileNetV3()
-    import timm
+    
     m = timm.create_model('mobilenetv3_large_100', pretrained=True)
     target_state_dict = net.state_dict()
     src_state_dict = m.state_dict()
@@ -192,8 +287,10 @@ def test():
     for i, key in enumerate(target_state_dict):
         target_state_dict[key] = src_state_dict[src_keys[i]]
     net.load_state_dict(target_state_dict)
-    y = net(x)
-    print(torch.all(torch.eq(y, y2)))
-    
+
+    boollist = [True, False]
+    fuse_list = random.choices(boollist, k=14)
+    MobileNetV3Subnet(fuse_list)
+
 if __name__ == '__main__':
     test()

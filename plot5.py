@@ -25,6 +25,29 @@ flopsf1 = []
 flopsf2 = []
 flopsh1 = []
 flopsh2 = []
+paramsb = []
+paramsf1 = []
+paramsf2 = []
+paramsh1 = []
+paramsh2 = []
+
+def countParams(model):
+    return sum(p.numel() for p in model.parameters())
+
+for net in supernet:
+    paramsb.append(countParams(net)/1e6)
+for net in supernetf1:
+    paramsf1.append(countParams(net)/1e6)
+for net in supernetf2:
+    paramsf2.append(countParams(net)/1e6)
+for net in superneth1:
+    paramsh1.append(countParams(net)/1e6)
+for net in superneth2:
+    paramsh2.append(countParams(net)/1e6)
+
+print(paramsb, paramsf1, paramsf2, paramsh1, paramsh2)
+#exit()
+
 for net in supernet:
     f, data = count_ops(net, x)
     flopsb.append(f/1e6)
