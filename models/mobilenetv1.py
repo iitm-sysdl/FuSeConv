@@ -1,3 +1,8 @@
+'''
+FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays
+Authors: Surya Selvam, Vinod Ganesan, Pratyush Kumar
+Email ID: selvams@purdue.edu, vinodg@cse.iitm.ac.in, pratyush@cse.iitm.ac.in
+'''
 '''MobileNet in PyTorch.
 
 See the paper "MobileNets: Efficient Convolutional Neural Networks for Mobile Vision Applications"

@@ -1,3 +1,8 @@
+'''
+FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays
+Authors: Surya Selvam, Vinod Ganesan, Pratyush Kumar
+Email ID: selvams@purdue.edu, vinodg@cse.iitm.ac.in, pratyush@cse.iitm.ac.in
+'''
 import os
 import torch
 import wandb
@@ -211,7 +216,7 @@ if __name__ == '__main__':
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
-    parser.add_argument('--variant', '-v', type=str, help='Baseline or Friendly', required=True)
+    parser.add_argument('--variant', '-v', type=str, help='friendlyv1 or friendlyv2', required=True)
     args = parser.parse_args()
 
     if not os.path.isdir(args.name):

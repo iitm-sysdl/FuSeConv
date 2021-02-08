@@ -1,3 +1,8 @@
+'''
+FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays
+Authors: Surya Selvam, Vinod Ganesan, Pratyush Kumar
+Email ID: selvams@purdue.edu, vinodg@cse.iitm.ac.in, pratyush@cse.iitm.ac.in
+'''
 '''VGG11/13/16/19 in Pytorch.'''
 import torch
 import torch.nn as nn
