@@ -3,18 +3,12 @@ FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays
 Authors: Surya Selvam, Vinod Ganesan, Pratyush Kumar
 Email ID: selvams@purdue.edu, vinodg@cse.iitm.ac.in, pratyush@cse.iitm.ac.in
 '''
-import os
-import sys
-import time
 import math
-import math 
-
 import torch
+import numpy as np
 import torch.nn as nn
 import torch.nn.init as init
-import numpy as np 
-from tqdm import tqdm
-
+from models import *
 
 def gemmCycles(dimension_rows, dimension_cols, ifmap_h, ifmap_w, filt_h, filt_w,
             num_channels, stride_h, stride_w, num_filt, batch_size = 1):
@@ -114,13 +108,10 @@ class ForwardHook:
             t = 0
             # Groups == 1. Normal Convolution. Maps as GEMM op on Systolic and FuSe.
             if g == 1:
-                t, u, r, w = gemmCycles(dimension_rows=self.arraySizeX, dimension_cols=self.arraySizeY, 
+                t = gemmCycles(dimension_rows=self.arraySizeX, dimension_cols=self.arraySizeY, 
                                 ifmap_h=inDim_h, ifmap_w=inDim_w,
                                 filt_h=k_h, filt_w=k_w,
                                 num_channels=inC, stride_h=s_h, stride_w=s_w, num_filt=outC)
-                # print('Group=1 ', inDim_h, inDim_w, k_h, k_w, inC, outC, t)
-                self.utilize.update(u)
-                self.bandwidth.update(r,w)
                 if k_h == 1 and k_w == 1:
                     self.latency.pointwiseConv += t
                 else:
@@ -130,7 +121,6 @@ class ForwardHook:
             else:
                 # If Systolic Hardware: Do Poor Utiliation GEMM. With 1 channel and 1 filter.
                 if self.hardware == 'Systolic':
-                    # print(inDim_h, inDim_w, k_h, k_w, s_h, outC)
                     t = gemmCycles(dimension_rows=self.arraySizeX, dimension_cols=self.arraySizeY, 
                                 ifmap_h=inDim_h, ifmap_w=inDim_w,
                                 filt_h=k_h, filt_w=k_w,
@@ -195,3 +185,32 @@ def getModelLatency(model, x, arraySizeX=8, arraySizeY=8, hardware='Systolic'):
     latency = hookfn.latency.time
     hookfn.clear()
     return latency
+
+def test():
+    num_classes = 1000
+    baseline = [MnasNet(num_classes), MobileNetV1(num_classes), MobileNetV2(num_classes), MobileNetV3('small', num_classes), MobileNetV3('large', num_classes)]
+    FuSeHalf = [MnasNetFuSeHalf(num_classes), MobileNetV1FuSeHalf(num_classes), MobileNetV2FuSeHalf(num_classes), MobileNetV3FuSeHalf('small', num_classes), MobileNetV3FuSeHalf('large', num_classes)]
+    FuSeFull = [MnasNetFuSeFull(num_classes), MobileNetV1FuSeFull(num_classes), MobileNetV2FuSeFull(num_classes), MobileNetV3FuSeFull('small', num_classes), MobileNetV3FuSeFull('large', num_classes)]
+    FuSeHalfHybrid = [MnasNetFuSeHalfHybrid(num_classes), MobileNetV1FuSeHalfHybrid(num_classes), MobileNetV2FuSeHalfHybrid(num_classes), MobileNetV3FuSeHalfHybrid('small', num_classes), MobileNetV3FuSeHalfHybrid('large', num_classes)]
+    FuSeFullHybrid = [MnasNetFuSeFullHybrid(num_classes), MobileNetV1FuSeFullHybrid(num_classes), MobileNetV2FuSeFullHybrid(num_classes), MobileNetV3FuSeFullHybrid('small', num_classes), MobileNetV3FuSeFullHybrid('large', num_classes)]
+
+    x = torch.rand([1,3,224,224])
+    arrX = 64
+    arrY = 64
+
+    baselineLatency = []
+    hardware = 'Systolic'
+    for net in baseline:
+        latency = getModelLatency(net, x, arrX, arrY, hardware)
+        baselineLatency.append(latency)
+
+    fuselatency = []
+    hardware = 'FuSe'
+    for net in FuSeHalf:
+        latency = getModelLatency(net, x, arrX, arrY, hardware)
+        fuselatency.append(latency)
+    
+    print(np.array(baselineLatency)/np.array(fuselatency))
+
+if __name__ == '__main__':
+    test()

@@ -104,9 +104,9 @@ class InvertedResidual(nn.Module):
         else:
             return self.conv(x)
 
-class InvertedResidualFriendly(nn.Module):
+class InvertedResidualHalf(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio, kernel):
-        super(InvertedResidualFriendly, self).__init__()
+        super(InvertedResidualHalf, self).__init__()
         self.stride = stride
         assert stride in [1, 2]
 
@@ -142,9 +142,9 @@ class InvertedResidualFriendly(nn.Module):
         else:
             return out
 
-class InvertedResidualFriendly2(nn.Module):
+class InvertedResidualFull(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio, kernel):
-        super(InvertedResidualFriendly2, self).__init__()
+        super(InvertedResidualFull, self).__init__()
         self.stride = stride
         assert stride in [1, 2]
 
@@ -202,9 +202,9 @@ class MnasNetClass(nn.Module):
         # building first two layer
         if block == InvertedResidual:
             self.features = [Conv_3x3(3, input_channel, 2), SepConv_3x3(input_channel, 16)]
-        elif block == InvertedResidualFriendly:
+        elif block == InvertedResidualHalf:
             self.features = [Conv_3x3(3, input_channel, 2), SepConvFriendly(input_channel, 16)]
-        elif block == InvertedResidualFriendly2:
+        elif block == InvertedResidualFull:
             self.features = [Conv_3x3(3, input_channel, 2), SepConvFriendly2(input_channel, 16)]
         input_channel = 16
 
@@ -254,29 +254,120 @@ class MnasNetClass(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
 
+class MnasNetClassHybrid(nn.Module):
+    def __init__(self, block, blockFriendly, n_class=1000, input_size=224, width_mult=1.):
+        super(MnasNetClassHybrid, self).__init__()
+
+        # setting of inverted residual blocks
+        self.interverted_residual_setting = [
+            # t, c, n, s, k, fuse
+            [3, 24,  3, 2, 3, 1],  # -> 56x56
+            [3, 40,  3, 2, 5, 1],  # -> 28x28
+            [6, 80,  3, 2, 5, 1],  # -> 14x14
+            [6, 96,  2, 1, 3, 0],  # -> 14x14
+            [6, 192, 4, 2, 5, 0],  # -> 7x7
+            [6, 320, 1, 1, 3, 0],  # -> 7x7
+        ]
+
+        assert input_size % 32 == 0
+        input_channel = int(32 * width_mult)
+        self.last_channel = int(1280 * width_mult) if width_mult > 1.0 else 1280
+
+        # building first two layer
+        if block == InvertedResidual:
+            self.features = [Conv_3x3(3, input_channel, 2), SepConv_3x3(input_channel, 16)]
+        elif block == InvertedResidualHalf:
+            self.features = [Conv_3x3(3, input_channel, 2), SepConvFriendly(input_channel, 16)]
+        elif block == InvertedResidualFull:
+            self.features = [Conv_3x3(3, input_channel, 2), SepConvFriendly2(input_channel, 16)]
+        input_channel = 16
+
+        # building inverted residual blocks (MBConv)
+        for t, c, n, s, k, f in self.interverted_residual_setting:
+            output_channel = int(c * width_mult)
+            if f == 0:
+                blockReplace = block
+            else:
+                blockReplace = blockFriendly
+            for i in range(n):
+                if i == 0:
+                    self.features.append(blockReplace(input_channel, output_channel, s, t, k))
+                else:
+                    self.features.append(blockReplace(input_channel, output_channel, 1, t, k))
+                input_channel = output_channel
+
+        # building last several layers
+        self.features.append(Conv_1x1(input_channel, self.last_channel))
+        self.features.append(nn.AdaptiveAvgPool2d(1))
+
+        # make it nn.Sequential
+        self.features = nn.Sequential(*self.features)
+
+        # building classifier
+        self.classifier = nn.Sequential(
+            nn.Dropout(),
+            nn.Linear(self.last_channel, n_class),
+        )
+
+        self._initialize_weights()
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(-1, self.last_channel)
+        x = self.classifier(x)
+        return x
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm2d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.Linear):
+                n = m.weight.size(1)
+                m.weight.data.normal_(0, 0.01)
+                m.bias.data.zero_()
+
 def MnasNet(num_classes=1000):
     return MnasNetClass(InvertedResidual, num_classes)
 
-def MnasNetFriendly(num_classes=1000):
-    return MnasNetClass(InvertedResidualFriendly, num_classes)
+def MnasNetFuSeHalf(num_classes=1000):
+    return MnasNetClass(InvertedResidualHalf, num_classes)
 
-def MnasNetFriendly2(num_classes=1000):
-    return MnasNetClass(InvertedResidualFriendly2, num_classes)
+def MnasNetFuSeFull(num_classes=1000):
+    return MnasNetClass(InvertedResidualFull, num_classes)
+
+def MnasNetFuSeHalfHybrid(num_classes=1000):
+    return MnasNetClassHybrid(InvertedResidual, InvertedResidualHalf, num_classes)
+
+def MnasNetFuSeFullHybrid(num_classes=1000):
+    return MnasNetClassHybrid(InvertedResidual, InvertedResidualFull, num_classes)
 
 def test():
     net = MnasNet()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
-    net = MnasNetFriendly()
+    net = MnasNetFuSeHalf()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
-    net = MnasNetFriendly2()
+    net = MnasNetFuSeFull()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
-    
+    net = MnasNetFuSeFullHybrid()
+    x = torch.randn(1,3,224,224)
+    y = net(x)
+    print(y.size())
+    net = MnasNetFuSeFullHybrid()
+    x = torch.randn(1,3,224,224)
+    y = net(x)
+    print(y.size())
 
 if __name__ == '__main__':
     test()

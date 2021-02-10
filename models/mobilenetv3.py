@@ -121,9 +121,9 @@ class MobileBottleneck(nn.Module):
         else:
             return self.conv(x)
 
-class MobileBottleneckFriendly(nn.Module):
+class MobileBottleneckHalf(nn.Module):
     def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
-        super(MobileBottleneckFriendly, self).__init__()
+        super(MobileBottleneckHalf, self).__init__()
         assert stride in [1, 2]
         assert kernel in [3, 5]
         padding = (kernel - 1) // 2
@@ -177,9 +177,9 @@ class MobileBottleneckFriendly(nn.Module):
         else:
             return out
     
-class MobileBottleneckFriendly2(nn.Module):
+class MobileBottleneckFull(nn.Module):
     def __init__(self, inp, oup, kernel, stride, exp, se=False, nl='RE'):
-        super(MobileBottleneckFriendly2, self).__init__()
+        super(MobileBottleneckFull, self).__init__()
         assert stride in [1, 2]
         assert kernel in [3, 5]
         padding = (kernel - 1) // 2
@@ -339,22 +339,148 @@ class MobileNetV3Class(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+class MobileNetV3ClassHybrid(nn.Module):
+    def __init__(self, block, n_class, mode, dropout=0.20, width_mult=1.0):
+        super(MobileNetV3ClassHybrid, self).__init__()
+        input_channel = 16
+        last_channel = 1280
+        if mode == 'large':
+            # refer to Table 1 in paper
+            mobile_setting = [
+                # k, exp, c,  se,     nl,  s, fuse
+                [3, 16,  16,  False, 'RE', 1, 0],
+                [3, 64,  24,  False, 'RE', 2, 1],
+                [3, 72,  24,  False, 'RE', 1, 1],
+                [5, 72,  40,  True,  'RE', 2, 1],
+                [5, 120, 40,  True,  'RE', 1, 1],
+                [5, 120, 40,  True,  'RE', 1, 1],
+                [3, 240, 80,  False, 'HS', 2, 1],
+                [3, 200, 80,  False, 'HS', 1, 1],
+                [3, 184, 80,  False, 'HS', 1, 0],
+                [3, 184, 80,  False, 'HS', 1, 0],
+                [3, 480, 112, True,  'HS', 1, 0],
+                [3, 672, 112, True,  'HS', 1, 0],
+                [5, 672, 160, True,  'HS', 2, 0],
+                [5, 960, 160, True,  'HS', 1, 0],
+                [5, 960, 160, True,  'HS', 1, 0],
+            ]
+        elif mode == 'small':
+            # refer to Table 2 in paper
+            mobile_setting = [
+                # k, exp, c,  se,     nl,  s, fuse
+                [3, 16,  16,  True,  'RE', 2, 0],
+                [3, 72,  24,  False, 'RE', 2, 0],
+                [3, 88,  24,  False, 'RE', 1, 1],
+                [5, 96,  40,  True,  'HS', 2, 0],
+                [5, 240, 40,  True,  'HS', 1, 1],
+                [5, 240, 40,  True,  'HS', 1, 1],
+                [5, 120, 48,  True,  'HS', 1, 1],
+                [5, 144, 48,  True,  'HS', 1, 1],
+                [5, 288, 96,  True,  'HS', 2, 0],
+                [5, 576, 96,  True,  'HS', 1, 0],
+                [5, 576, 96,  True,  'HS', 1, 0],
+            ]
+        else:
+            raise NotImplementedError
 
-def MobileNetV3(mode='small', num_classes=100):
+        # building first layer
+        last_channel = make_divisible(last_channel * width_mult) if width_mult > 1.0 else last_channel
+        self.features = [conv_bn(3, input_channel, 2, nlin_layer=Hswish)]
+        self.classifier = []
+
+        # building mobile blocks
+        for k, exp, c, se, nl, s ,fuse in mobile_setting:
+            if fuse==0:
+                blockHybrid=MobileBottleneck
+            else:
+                blockHybrid=block
+            output_channel = make_divisible(c * width_mult)
+            exp_channel = make_divisible(exp * width_mult)
+            self.features.append(blockHybrid(input_channel, output_channel, k, s, exp_channel, se, nl))
+            input_channel = output_channel
+
+        # building last several layers
+        if mode == 'large':
+            last_conv = make_divisible(960 * width_mult)
+            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
+            self.features.append(nn.AdaptiveAvgPool2d(1))
+            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
+            self.features.append(Hswish(inplace=True))
+        elif mode == 'small':
+            last_conv = make_divisible(576 * width_mult)
+            self.features.append(conv_1x1_bn(input_channel, last_conv, nlin_layer=Hswish))
+            # self.features.append(SEModule(last_conv))  # refer to paper Table2, but I think this is a mistake
+            self.features.append(nn.AdaptiveAvgPool2d(1))
+            self.features.append(nn.Conv2d(last_conv, last_channel, 1, 1, 0))
+            self.features.append(Hswish(inplace=True))
+        else:
+            raise NotImplementedError
+
+        # make it nn.Sequential
+        self.features = nn.Sequential(*self.features)
+
+        # building classifier
+        self.classifier = nn.Sequential(
+            nn.Dropout(p=dropout),    # refer to paper section 6
+            nn.Linear(last_channel, n_class),
+        )
+
+        self._initialize_weights()
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.mean(3).mean(2)
+        x = self.classifier(x)
+        return x
+
+    def _initialize_weights(self):
+        # weight initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+
+def MobileNetV3(mode='small', num_classes=1000):
     return MobileNetV3Class(MobileBottleneck, num_classes, mode)
 
-def MobileNetV3Friendly(mode='small', num_classes=100):
-    return MobileNetV3Class(MobileBottleneckFriendly, num_classes, mode)
+def MobileNetV3FuSeHalf(mode='small', num_classes=1000):
+    return MobileNetV3Class(MobileBottleneckHalf, num_classes, mode)
 
-def MobileNetV3Friendly2(mode='small', num_classes=100):
-    return MobileNetV3Class(MobileBottleneckFriendly2, num_classes, mode)
+def MobileNetV3FuSeFull(mode='small', num_classes=1000):
+    return MobileNetV3Class(MobileBottleneckFull, num_classes, mode)
+
+def MobileNetV3FuSeHalfHybrid(mode='small', num_classes=1000):
+    return MobileNetV3ClassHybrid(MobileBottleneckHalf, num_classes, mode)
+
+def MobileNetV3FuSeFullHybrid(mode='small', num_classes=1000):
+    return MobileNetV3ClassHybrid(MobileBottleneckFull, num_classes, mode)
 
 def test():
     net = MobileNetV3()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())
-    net = MobileNetV3Friendly()
+    net = MobileNetV3FuSeHalf()
+    x = torch.randn(1,3,224,224)
+    y = net(x)
+    print(y.size())
+    net = MobileNetV3FuSeFull()
+    x = torch.randn(1,3,224,224)
+    y = net(x)
+    print(y.size())
+    net = MobileNetV3FuSeHalfHybrid()
+    x = torch.randn(1,3,224,224)
+    y = net(x)
+    print(y.size())
+    net = MobileNetV3FuSeFullHybrid()
     x = torch.randn(1,3,224,224)
     y = net(x)
     print(y.size())

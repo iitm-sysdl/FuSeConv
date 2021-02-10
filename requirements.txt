@@ -1,0 +1,4 @@
+wandb
+numpy
+torch
+torchvision

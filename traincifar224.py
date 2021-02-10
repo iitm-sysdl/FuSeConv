@@ -109,13 +109,9 @@ def main():
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=4)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=4)
 
-    if args.baseline == True:
+    if args.variant == 'baseline':
         if args.Network == 'ResNet':
             net = ResNet50(numClasses)
-        elif args.Network == 'VGG':
-            net = VGG(numClasses)
-        elif args.Network == 'SqueezeNet':
-            net = SqueezeNet(numClasses)
         elif args.Network == 'MobileNetV1':
             net = MobileNetV1(numClasses)
         elif args.Network == 'MobileNetV2':
@@ -126,44 +122,35 @@ def main():
             net = MobileNetV3('large', numClasses)
         elif args.Network == 'MnasNet':
             net = MnasNet(numClasses)    
+    elif args.variant == 'half':
+        if args.Network == 'ResNet':
+            net = ResNet50FuSeHalf(numClasses)
+        elif args.Network == 'MobileNetV1':
+            net = MobileNetV1FuSeHalf(numClasses)
+        elif args.Network == 'MobileNetV2':
+            net = MobileNetV2FuSeHalf(numClasses)
+        elif args.Network == 'MobileNetV3S':
+            net = MobileNetV3FuSeHalf('small', numClasses)
+        elif args.Network == 'MobileNetV3L':
+            net = MobileNetV3FuSeHalf('large', numClasses)
+        elif args.Network == 'MnasNet':
+            net = MnasNetFuSeHalf(numClasses)
+    elif args.variant == 'full':
+        if args.Network == 'ResNet':
+            net = ResNet50FuSeFull(numClasses)
+        elif args.Network == 'MobileNetV1':
+            net = MobileNetV1FuSeFull(numClasses)
+        elif args.Network == 'MobileNetV2':
+            net = MobileNetV2FuSeFull(numClasses)
+        elif args.Network == 'MobileNetV3S':
+            net = MobileNetV3FuSeFull('small', numClasses)
+        elif args.Network == 'MobileNetV3L':
+            net = MobileNetV3FuSeFull('large', numClasses)
+        elif args.Network == 'MnasNet':
+            net = MnasNetFuSeFull(numClasses)
     else:
-        if args.variant == 'friendlyv1':
-            if args.Network == 'ResNet':
-                net = ResNet50Friendly(numClasses)
-            elif args.Network == 'VGG':
-                net = VGGFriendly(numClasses)
-            elif args.Network == 'SqueezeNet':
-                net = SqueezeNetFriendly(numClasses)
-            elif args.Network == 'MobileNetV1':
-                net = MobileNetV1Friendly(numClasses)
-            elif args.Network == 'MobileNetV2':
-                net = MobileNetV2Friendly(numClasses)
-            elif args.Network == 'MobileNetV3S':
-                net = MobileNetV3Friendly('small', numClasses)
-            elif args.Network == 'MobileNetV3L':
-                net = MobileNetV3Friendly('large', numClasses)
-            elif args.Network == 'MnasNet':
-                net = MnasNetFriendly(numClasses)
-        elif args.variant == 'friendlyv2':
-            if args.Network == 'ResNet':
-                net = ResNet50Friendly2(numClasses)
-            elif args.Network == 'VGG':
-                net = VGGFriendly2(numClasses)
-            elif args.Network == 'SqueezeNet':
-                net = SqueezeNetFriendly2(numClasses)
-            elif args.Network == 'MobileNetV1':
-                net = MobileNetV1Friendly2(numClasses)
-            elif args.Network == 'MobileNetV2':
-                net = MobileNetV2Friendly2(numClasses)
-            elif args.Network == 'MobileNetV3S':
-                net = MobileNetV3Friendly2('small', numClasses)
-            elif args.Network == 'MobileNetV3L':
-                net = MobileNetV3Friendly2('large', numClasses)
-            elif args.Network == 'MnasNet':
-                net = MnasNetFriendly2(numClasses)
-        else:
-            print("Provide a valid variant")
-            exit(0)
+        print("Provide a valid variant")
+        exit(0)
     
     criterion = nn.CrossEntropyLoss().cuda()    
     optimizer = torch.optim.SGD(net.parameters(), 0.1, momentum=0.9, weight_decay=5e-4)
@@ -200,7 +187,7 @@ def main():
             torch.save(state, args.name+'/LastEpoch.t7')
     
     meta = open(args.name+'/stats.txt', "a")
-    s = 'baseline' if args.baseline==True else 'friendly' 
+    s = args.variant 
     meta.write(args.Dataset + ' , ' + args.Network + ' , ' + s + ' , ' + str(bestAcc) + '\n')    
     meta.close()
 
@@ -212,11 +199,10 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description = "Train CIFAR Models")
     parser.add_argument("--Dataset", "-D", type = str, help = 'CIFAR10, CIFAR100', required=True)
-    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, VGG, SqueezeNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L, MnasNet', required=True)
+    parser.add_argument("--Network", "-N", type = str, help = 'ResNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L, MnasNet', required=True)
     parser.add_argument("--name", "-n", type=str, help = 'Name of the run', required=True)
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
-    parser.add_argument('--baseline', '-b', action='store_true', help='Baseline or Friendly')
-    parser.add_argument('--variant', '-v', type=str, help='friendlyv1 or friendlyv2', required=True)
+    parser.add_argument('--variant', '-v', type=str, help='baseline or half or full', required=True)
     args = parser.parse_args()
 
     if not os.path.isdir(args.name):

@@ -1,7 +1,17 @@
-# FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays  [[Paper](https://surya00060.github.io/files/FuSeConv_DATE_2021.pdf)][[Short Slides](https://slides.com/vinodganesan/fuseconv_date_2021-9d8347/fullscreen?token=twJbUI6C)][[Full Slides](https://slides.com/vinodganesan/fuseconv_date_2021/fullscreen?token=0vfMX47V)][[Video]()]
+# FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays  [[Paper](https://surya00060.github.io/files/FuSeConv_DATE_2021.pdf)][[Short Slides](https://slides.com/vinodganesan/fuseconv_date_2021-9d8347/fullscreen?token=twJbUI6C)][[Full Slides](https://slides.com/vinodganesan/fuseconv_date_2021/fullscreen?token=0vfMX47V)][[Video](https://surya00060.github.io/files/FuSeConv_DATE_2021.mp4)]
 
 ```BibTex
 ```
+## Problem: Inefficient Mapping of Depthwise Convolutions onto Systolic Arrays
+![Problem](images/problem.png)
+
+## Our Proposed Hardware/Software Co-Design Solution: FuSeConv
+
+### Network Modification
+![FuSeConv](images/FuSeConv.png)
+
+### Hardware Modification
+![Mapping](images/proposedHardware.png)
 
 ## Results
 
@@ -55,20 +65,52 @@
 | MobileNet V3 Large 50% Full FuSe |        74.50       |    264    |    5.57    |  1.76x  |
 | MobileNet V3 Large 50% Half FuSe |        73.80       |    230    |    5.46    |  1.83x  |
 
+
 ## PyTorch Model Codes
 
-The code for Full/Half DNN varaints can be found in ```models``` directory.
+The code for the following DNNs along with their varaints can be found in ```models``` directory.
 * MobileNet V1
 * MobileNet V2
 * MobileNet V3
 * MnasNet-B1
 * ResNet
-* VGG
-* SqueezeNet
 
-The hybrid or 50% varaints can be found in 
+## How to use these model codes to import?
+```python
+from models import *
+num_classes = 1000
 
+baseline = [MnasNet(num_classes), MobileNetV1(num_classes), MobileNetV2(num_classes), MobileNetV3('small', num_classes), MobileNetV3('large', num_classes)]
+
+fuSeHalf = [MnasNetFuSeHalf(num_classes), MobileNetV1FuSeHalf(num_classes), MobileNetV2FuSeHalf(num_classes), MobileNetV3FuSeHalf('small', num_classes), MobileNetV3FuSeHalf('large', num_classes)]
+
+fuSeFull = [MnasNetFuSeFull(num_classes), MobileNetV1FuSeFull(num_classes), MobileNetV2FuSeFull(num_classes), MobileNetV3FuSeFull('small', num_classes), MobileNetV3FuSeFull('large', num_classes)]
+
+fuSeHalfHybrid = [MnasNetFuSeHalfHybrid(num_classes), MobileNetV1FuSeHalfHybrid(num_classes), MobileNetV2FuSeHalfHybrid(num_classes), MobileNetV3FuSeHalfHybrid('small', num_classes), MobileNetV3FuSeHalfHybrid('large', num_classes)]
+
+fuSeFullHybrid = [MnasNetFuSeFullHybrid(num_classes), MobileNetV1FuSeFullHybrid(num_classes), MobileNetV2FuSeFullHybrid(num_classes), MobileNetV3FuSeFullHybrid('small', num_classes), MobileNetV3FuSeFullHybrid('large', num_classes)]
+```
 ## Train on ImageNet
+
+### MobileNets and MnasNet
+To train the MobileNets(V2, V3-Small and V3-Large) and MnasNet on ImageNet dataset, we reused the code from following [repository](https://github.com/meijieru/yet_another_mobilenet_series). Thanks to those authors for setting up a perfect environment to train ImageNet models. Please refer the above repo for more details. Modified Code to train FuSeNetworks can be found in ```yet_another_mobilenet_series/```.
+
+The training hyperparameters used are listed below.
+
+|   Hyperparameter   |   Value   |    Hyperparameter    |  Value  |
+|:------------------:|:---------:|:--------------------:|:-------:|
+|  Image Resolution  | 224 x 224 |     lr scheduler     | rmsprop |
+|       epochs       |    350    |    lr decay gamma    |   0.97  |
+|      optimizer     |  rmsprop  |    lr decay epoch    |   2.4   |
+|      momentum      |    0.9    |    label smoothing   |   0.1   |
+|        alpha       |    0.9    | moving avearge decay |  0.9999 |
+|       epsilon      |   0.001   |      random seed     |   1995  |
+|    weight decay    |    1e-5   |  batch_norm momentum |   0.01  |
+|       base lr      |   0.016   |  batch_norm epsilon  |  1e-03  |
+| batch size per GPU |    128    |                      |         |
+
+### MobileNet-V1 and ResNet
+To train ResNet and MobileNet-V1 on ImageNet dataset, we reused the code from following [repository](https://github.com/cybertronai/imagenet18). This repo enabled us to train ResNet-50 and MobileNet-V1 in 30-40 epochs compared 350 epochs of MobileNets. A blog post by the authors on various techniques used to train ImageNet in 18 minutes can be found [here](https://www.fast.ai/2018/08/10/fastai-diu-imagenet/). Modified Code to train FuSeNetworks can be found in ```localTrain/```.
 
 ## Train on CIFAR
 
@@ -78,12 +120,47 @@ CIFAR images 32x32 are resized or upscaled to 224x224 and used to train the mode
 python traincifar224.py -D Dataset -N Network -n NameoftheRun -v Variant
 
 --resume : For Resuming the Run
---baseline: For running the baseline model
 
 Options: 
 Dataset = CIFAR10, CIFAR100  
-Network = ResNet, VGG, SqueezeNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L, MnasNet 
-Variant = friendlyv1, friendlyv2
+Network = ResNet, MobileNetV1, MobileNetV2, MobileNetV3S, MobileNetV3L, MnasNet 
+Variant = baseline, half, full
 ```
 
-## Analytical Cost Model of Inference latency on Systolic Array
+## Analytical model to compute inference latency on systolic arrays and modified hardware
+
+```python
+from models import *
+from analyticalLatencyModel import getModelLatency
+
+# Set Input tensor Dimension and Systolic Array Dimension 
+x = torch.rand([1,3,224,224])
+arrX = 64
+arrY = 64
+
+# Some Baseline non FuSeNetwork
+net = X() 
+hardware = 'Systolic'
+latency = getModelLatency(net, x, arrX, arrY, hardware)
+
+# FuSeVariants
+net = XFuSeY() 
+hardware = 'FuSe'
+latency = getModelLatency(net, x, arrX, arrY, hardware)
+
+## Hardware = FuSe performs optimal mapping for FuSe layers.  
+```
+
+There's also a sample code in ```analyticalLatencyModel.py```.
+```
+python analyticalLatencyModel.py
+```
+
+## Short Slides
+[![slides](images/slides.png)](https://slides.com/vinodganesan/fuseconv_date_2021-9d8347/fullscreen?token=twJbUI6C)
+
+## Full Slides
+[![slides](images/slides2.png)](https://slides.com/vinodganesan/fuseconv_date_2021/fullscreen?token=0vfMX47V)
+
+## Video
+[![video](images/video.png)](https://surya00060.github.io/files/FuSeConv_DATE_2021.mp4)
