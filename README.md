@@ -1,6 +1,13 @@
 # FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays  [[Paper](https://surya00060.github.io/files/FuSeConv_DATE_2021.pdf)][[Short Slides](https://slides.com/vinodganesan/fuseconv_date_2021-9d8347/fullscreen?token=twJbUI6C)][[Full Slides](https://slides.com/vinodganesan/fuseconv_date_2021/fullscreen?token=0vfMX47V)][[Video](https://surya00060.github.io/files/FuSeConv_DATE_2021.mp4)]
 
 ```BibTex
+@INPROCEEDINGS{9473985,  
+author={Selvam, Surya and Ganesan, Vinod and Kumar, Pratyush},  
+booktitle={2021 Design, Automation   Test in Europe Conference   Exhibition (DATE)},   
+title={FuSeConv: Fully Separable Convolutions for Fast Inference on Systolic Arrays},   
+year={2021},  volume={},  number={},  pages={651-656},  
+doi={10.23919/DATE51398.2021.9473985}
+}
 ```
 ## Problem: Inefficient Mapping of Depthwise Convolutions onto Systolic Arrays
 ![Problem](images/problem.png)
